@@ -16,8 +16,12 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController(
+    text: "bharathbiomedpharma@gmail.com",
+  );
+  final _passwordController = TextEditingController(
+    text: "Bharath@2024",
+  );
   final _formKey = GlobalKey<FormState>();
   final FirebaseAuthService _authService = FirebaseAuthService();
   bool _isOffline = false;

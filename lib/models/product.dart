@@ -2,7 +2,8 @@ class Product {
   final String id;
   final String name;
   final String info;
-  final List<String> departments;
+  final Map<String, int>
+      departments; // Updated: Now storing department positions
   final String imageUrl;
 
   Product({
@@ -18,7 +19,8 @@ class Product {
       id: json['id'],
       name: json['name'],
       info: json['info'],
-      departments: List<String>.from(json['departments']),
+      departments:
+          Map<String, int>.from(json['departments']), // Updated to handle Map
       imageUrl: json['imageUrl'],
     );
   }
@@ -28,7 +30,7 @@ class Product {
       'id': id,
       'name': name,
       'info': info,
-      'departments': departments,
+      'departments': departments, // Updated to store as Map
       'imageUrl': imageUrl,
     };
   }

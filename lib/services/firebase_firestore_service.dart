@@ -37,7 +37,7 @@ class FirebaseFirestoreService {
     }
   }
 
-  // Get all products
+  // Get all products with department positions
   Future<List<Product>> getAllProducts() async {
     try {
       List<Map<String, dynamic>> localProductsData =
@@ -51,7 +51,18 @@ class FirebaseFirestoreService {
       List<Product> products = querySnapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
-        return Product.fromJson(data);
+
+        // Convert department data to a map with positions
+        Map<String, int> departmentPositions =
+            Map<String, int>.from(data['departments'] ?? {});
+
+        return Product(
+          id: data['id'],
+          name: data['name'],
+          info: data['info'],
+          departments: departmentPositions, // Department positions stored
+          imageUrl: data['imageUrl'],
+        );
       }).toList();
 
       await saveToJsonFile(
@@ -64,7 +75,7 @@ class FirebaseFirestoreService {
     }
   }
 
-  // Get all departments
+  // Get departments without predefined sorting
   Future<List<String>> getDepartments() async {
     try {
       List<Map<String, dynamic>> localDepartmentsData =
@@ -80,6 +91,7 @@ class FirebaseFirestoreService {
       if (docSnapshot.exists) {
         List<String> departments =
             List<String>.from(docSnapshot['departments']);
+
         List<Map<String, dynamic>> departmentsJson =
             departments.map((e) => {'department': e}).toList();
 
@@ -95,7 +107,7 @@ class FirebaseFirestoreService {
     }
   }
 
-  // Sync data from Firebase to local storage
+  // Sync data while preserving department positions
   Future<void> syncData() async {
     try {
       QuerySnapshot productQuerySnapshot =
@@ -103,7 +115,18 @@ class FirebaseFirestoreService {
       List<Product> products = productQuerySnapshot.docs.map((doc) {
         Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
         data['id'] = doc.id;
-        return Product.fromJson(data);
+
+        // Ensure department positions are maintained
+        Map<String, int> departmentPositions =
+            Map<String, int>.from(data['departments'] ?? {});
+
+        return Product(
+          id: data['id'],
+          name: data['name'],
+          info: data['info'],
+          departments: departmentPositions,
+          imageUrl: data['imageUrl'],
+        );
       }).toList();
 
       await saveToJsonFile(

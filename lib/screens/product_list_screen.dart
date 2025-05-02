@@ -30,9 +30,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
     List<Product> productData = await _firestoreService.getAllProducts();
     List<String> departmentData = await _firestoreService.getDepartments();
 
+    Map<String, List<Product>> sortedProductsByDepartment = {};
+
+    for (String department in departmentData) {
+      List<Product> categoryProducts = productData
+          .where((product) => product.departments.containsKey(department))
+          .toList();
+
+      // Sort products by position inside each department
+      categoryProducts.sort((a, b) => (a.departments[department] ?? 9999)
+          .compareTo(b.departments[department] ?? 9999));
+
+      sortedProductsByDepartment[department] = categoryProducts;
+    }
+
     setState(() {
       allProducts = productData;
-      categories = departmentData;
+      categories = departmentData; // Departments remain unordered as fetched
     });
   }
 
@@ -98,9 +112,11 @@ class _ProductListScreenState extends State<ProductListScreen> {
                 itemBuilder: (ctx, i) {
                   final category = categories[i];
                   final categoryProducts = allProducts
-                      .where(
-                          (product) => product.departments.contains(category))
-                      .toList();
+                      .where((product) =>
+                          product.departments.containsKey(category))
+                      .toList()
+                    ..sort((a, b) => (a.departments[category] ?? 9999)
+                        .compareTo(b.departments[category] ?? 9999));
                   return CategoryProductList(
                     category: category,
                     products: categoryProducts,
