@@ -27,8 +27,31 @@ class _ProductListScreenState extends State<ProductListScreen> {
   }
 
   Future<void> _fetchProductsAndCategories() async {
-    List<Product> productData = await _firestoreService.getAllProducts();
-    List<String> departmentData = await _firestoreService.getDepartments();
+    List<Product> productData = await _firestoreService.getAllProducts(
+      (successMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(successMessage)),
+        );
+      },
+      (errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      },
+    );
+    List<String> departmentData = await _firestoreService.getDepartments(
+      (successMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(successMessage)),
+        );
+        _fetchProductsAndCategories();
+      },
+      (errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      },
+    );
 
     Map<String, List<Product>> sortedProductsByDepartment = {};
 
@@ -54,8 +77,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
     setState(() {
       isSyncing = true;
     });
-    await _firestoreService.syncData();
-    await _fetchProductsAndCategories();
+
+    await _firestoreService.syncData(
+      (successMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(successMessage)),
+        );
+        _fetchProductsAndCategories();
+      },
+      (errorMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      },
+    );
+
     setState(() {
       isSyncing = false;
     });
@@ -96,10 +132,12 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
         actions: [
           IconButton(
-            icon: isSyncing
-                ? CircularProgressIndicator(color: Colors.white)
-                : Icon(Icons.sync),
+            icon: const Icon(
+              Icons.download_sharp,
+              size: 40,
+            ),
             onPressed: _syncData,
+            color: Colors.green,
           ),
         ],
       ),

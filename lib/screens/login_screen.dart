@@ -66,7 +66,18 @@ class _LoginScreenState extends State<LoginScreen> {
         _passwordController.text.trim(),
       );
       if (user != null) {
-        await FirebaseFirestoreService().syncData();
+        await FirebaseFirestoreService().syncData(
+          (successMessage) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(successMessage)),
+            );
+          },
+          (errorMessage) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(errorMessage)),
+            );
+          },
+        );
         // ignore: use_build_context_synchronously
         Navigator.pushReplacementNamed(context, '/productList');
       } else {
@@ -139,7 +150,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   ElevatedButton(
                     child: const Text('Continue in Offline Mode'),
                     onPressed: () async {
-                      await FirebaseFirestoreService().getAllProducts();
+                      await FirebaseFirestoreService().getAllProducts(
+                        (successMessage) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(successMessage)),
+                          );
+                        },
+                        (errorMessage) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(errorMessage)),
+                          );
+                        },
+                      );
                       // ignore: use_build_context_synchronously
                       Navigator.pushReplacementNamed(context, '/productList');
                     },

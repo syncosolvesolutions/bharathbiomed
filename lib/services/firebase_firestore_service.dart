@@ -18,11 +18,32 @@ class FirebaseFirestoreService {
     return File('$path/$fileName.json');
   }
 
+  // Future<void> saveToJsonFile(
+  //     String fileName, List<Map<String, dynamic>> data) async {
+  //   final file = await _localFile(fileName);
+  //   String json = jsonEncode(data);
+  //   await file.writeAsString(json);
+  // }
+
   Future<void> saveToJsonFile(
-      String fileName, List<Map<String, dynamic>> data) async {
-    final file = await _localFile(fileName);
-    String json = jsonEncode(data);
-    await file.writeAsString(json);
+    String fileName,
+    List<Map<String, dynamic>> data,
+    Function(String) onSuccess,
+    Function(String) onError,
+  ) async {
+    try {
+      final file = await _localFile(fileName);
+      String json = jsonEncode(data);
+      await file.writeAsString(json);
+
+      // Trigger success callback
+      onSuccess('Data successfully saved to $fileName.json');
+      debugPrint('Data saved to $fileName.json');
+    } catch (e) {
+      // Trigger error callback
+      onError('Error saving data: $e');
+      debugPrint('Error saving data: $e');
+    }
   }
 
   Future<List<Map<String, dynamic>>> loadFromJsonFile(String fileName) async {
@@ -38,7 +59,10 @@ class FirebaseFirestoreService {
   }
 
   // Get all products with department positions
-  Future<List<Product>> getAllProducts() async {
+  Future<List<Product>> getAllProducts(
+    Function(String) onSuccess,
+    Function(String) onError,
+  ) async {
     try {
       List<Map<String, dynamic>> localProductsData =
           await loadFromJsonFile('products');
@@ -66,7 +90,11 @@ class FirebaseFirestoreService {
       }).toList();
 
       await saveToJsonFile(
-          'products', products.map((product) => product.toJson()).toList());
+        'products',
+        products.map((product) => product.toJson()).toList(),
+        onSuccess,
+        onError,
+      );
 
       return products;
     } catch (e) {
@@ -76,7 +104,10 @@ class FirebaseFirestoreService {
   }
 
   // Get departments without predefined sorting
-  Future<List<String>> getDepartments() async {
+  Future<List<String>> getDepartments(
+    Function(String) onSuccess,
+    Function(String) onError,
+  ) async {
     try {
       List<Map<String, dynamic>> localDepartmentsData =
           await loadFromJsonFile('departments');
@@ -95,7 +126,12 @@ class FirebaseFirestoreService {
         List<Map<String, dynamic>> departmentsJson =
             departments.map((e) => {'department': e}).toList();
 
-        await saveToJsonFile('departments', departmentsJson);
+        await saveToJsonFile(
+          'departments',
+          departmentsJson,
+          onSuccess,
+          onError,
+        );
 
         return departments;
       } else {
@@ -108,7 +144,10 @@ class FirebaseFirestoreService {
   }
 
   // Sync data while preserving department positions
-  Future<void> syncData() async {
+  Future<void> syncData(
+    Function(String) onSuccess,
+    Function(String) onError,
+  ) async {
     try {
       QuerySnapshot productQuerySnapshot =
           await _firestore.collection('Products').get();
@@ -130,7 +169,11 @@ class FirebaseFirestoreService {
       }).toList();
 
       await saveToJsonFile(
-          'products', products.map((product) => product.toJson()).toList());
+        'products',
+        products.map((product) => product.toJson()).toList(),
+        onSuccess,
+        onError,
+      );
       debugPrint('Products synchronized from Firebase to local storage');
 
       DocumentSnapshot departmentDocSnapshot =
@@ -141,7 +184,12 @@ class FirebaseFirestoreService {
         List<Map<String, dynamic>> departmentsJson =
             departments.map((e) => {'department': e}).toList();
 
-        await saveToJsonFile('departments', departmentsJson);
+        await saveToJsonFile(
+          'departments',
+          departmentsJson,
+          onSuccess,
+          onError,
+        );
       }
       debugPrint('Departments synchronized from Firebase to local storage');
     } catch (e) {
