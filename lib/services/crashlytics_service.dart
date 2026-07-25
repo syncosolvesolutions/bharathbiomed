@@ -72,7 +72,9 @@ class CrashlyticsService {
       'type': build.type,
       'isPhysicalDevice': build.isPhysicalDevice,
       'systemFeatures': build.systemFeatures,
-      'serialNumber': build.serialNumber,
+      // AndroidDeviceInfo doesn't expose a serialNumber getter in recent
+      // device_info_plus versions. Use the device id as a substitute.
+      'serialNumber': build.id,
       'isLowRamDevice': build.isLowRamDevice,
     };
   }
