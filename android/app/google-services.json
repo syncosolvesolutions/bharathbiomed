@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "830540132112",
+    "project_id": "bharathbiomedpharma-6c6c3",
+    "storage_bucket": "bharathbiomedpharma-6c6c3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:830540132112:android:e222df6854b8bf5eed3f95",
+        "android_client_info": {
+          "package_name": "com.syncosolve.bharathbiomedpharma"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCa7iP0Kq52SuNZHQVKfwSlCDdGoxNazW4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:830540132112:android:6e32383bb730f292ed3f95",
+        "android_client_info": {
+          "package_name": "com.syncosolve.bharathbiomedpharma_admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCa7iP0Kq52SuNZHQVKfwSlCDdGoxNazW4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

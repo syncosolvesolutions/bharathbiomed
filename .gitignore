@@ -45,8 +45,9 @@ app.*.map.json
 /android/app/release
 android/app/.cxx/
 
-android/app/google-services.json
-ios/Runner/GoogleService-Info.plist
-macos/Runner/GoogleService-Info.plist
-pubspec.lock
-ios/Podfile.lock
+# google-services.json / GoogleService-Info.plist are tracked deliberately:
+# they hold public client identifiers (not secrets — see Firebase's docs),
+# and the app can't be built from a fresh clone without them.
+
+# Test coverage output (flutter test --coverage)
+coverage/

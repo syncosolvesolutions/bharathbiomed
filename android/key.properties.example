@@ -1,0 +1,8 @@
+# Copy this file to android/key.properties (already gitignored) and fill in
+# the values for the upload keystore you generate yourself — see
+# docs/PLAY_STORE_CHECKLIST.md for the exact keytool command and why this
+# file must never be committed or shared.
+storePassword=
+keyPassword=
+keyAlias=upload
+storeFile=/absolute/path/to/upload-keystore.jks

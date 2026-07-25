@@ -27,6 +27,12 @@ Flutter/flutter_export_environment.sh
 ServiceDefinitions.json
 Runner/GeneratedPluginRegistrant.*
 
+# Backup/scratch files Xcode or the Flutter tool can drop when auto-migrating
+# the project (e.g. running `flutter build ios` prompts a CocoaPods -> Swift
+# Package Manager migration attempt on newer toolchains).
+*.backup
+**/xcshareddata/swiftpm/
+
 # Exceptions to above rules.
 !default.mode1v3
 !default.mode2v3
