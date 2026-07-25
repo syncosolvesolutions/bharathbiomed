@@ -80,10 +80,40 @@ This app collects, via Firebase:
   > Sign in once to sync the latest catalog, then use the app fully offline.
 - **Content rating questionnaire:** no user-generated content, no ads, no
   violence/mature content — should land on "Everyone".
-- **Screenshots / feature graphic:** I have no Android emulator available in
-  this environment to capture these myself. Run the app on a real device or
-  an Android emulator (`flutter run --release`) and capture a few screens:
-  login, catalog with a couple of departments expanded, and the slideshow.
+- **Screenshots / feature graphic:** automated — see the next section.
+
+## 4a. Automated screenshots
+
+`integration_test/app_screenshot_test.dart` drives the real app on a
+connected device/emulator through login → catalog → slideshow and saves a
+PNG at each screen to `./screenshots/`. Credentials are passed in on the
+command line via `--dart-define`, never stored in a file, so this is safe to
+commit and re-run for every release.
+
+With an Android device or emulator connected (`adb devices` shows it):
+
+```bash
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/app_screenshot_test.dart \
+  -d <deviceId> \
+  --dart-define=TEST_EMAIL=you@example.com \
+  --dart-define=TEST_PASSWORD=yourpassword
+```
+
+Output: `screenshots/01_login.png`, `02_catalog.png`, `03_catalog_selected.png`,
+`04_slideshow.png` — upload the ones you want directly to Play Console's
+store listing screenshots section (crop/resize if Play Console complains
+about aspect ratio; it accepts most phone/tablet screenshot dimensions
+as-is).
+
+Notes:
+- This needs `TEST_EMAIL`/`TEST_PASSWORD` for a real Firebase account with
+  product data behind it, and a network connection during the run (it signs
+  in and syncs for real).
+- If the catalog has fewer than 2 products, screenshots 3–4 (selection +
+  slideshow) are skipped automatically — screenshots 1–2 still get captured.
+- Re-run any time the UI changes to keep the store listing screenshots current.
 
 ## 5. Privacy policy
 

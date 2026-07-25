@@ -16,3 +16,8 @@
 -keepclassmembers class * {
     @com.google.firebase.database.PropertyName <fields>;
 }
+
+# Flutter's Play Store deferred-components support references the Play Core
+# split-install API, which isn't a dependency here since this app doesn't use
+# deferred components. R8 fails on these unresolved references without this.
+-dontwarn com.google.android.play.core.**
