@@ -21,14 +21,14 @@ class CategorySection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 4.0),
           child: Text(
             category,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
         SizedBox(
-          height: 200,
+          height: 216,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: products.length,

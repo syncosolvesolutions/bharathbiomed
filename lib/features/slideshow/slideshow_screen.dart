@@ -49,9 +49,15 @@ class SlideshowScreen extends StatelessWidget {
           Positioned(
             top: 40,
             right: 10,
-            child: IconButton(
-              icon: const Icon(Icons.close, size: 30, color: Colors.black),
-              onPressed: () => Navigator.of(context).pop(),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.45),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.close, size: 26, color: Colors.white),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
             ),
           ),
         ],

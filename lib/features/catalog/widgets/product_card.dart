@@ -6,8 +6,8 @@ import '../../../domain/models/product.dart';
 import '../selection_controller.dart';
 
 /// A single product tile: tap to toggle selection. Shows a numbered badge
-/// (its position in the current selection) once selected, feeding the
-/// slideshow's ordering.
+/// on a scrim over the full image once selected, feeding the slideshow's
+/// ordering.
 class ProductCard extends ConsumerWidget {
   const ProductCard({super.key, required this.product, required this.selectionNumber});
 
@@ -18,6 +18,7 @@ class ProductCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isSelected = ref.watch(selectionControllerProvider.select((s) => s.contains(product)));
     final tileSize = MediaQuery.of(context).size.height / 3;
+    final scheme = Theme.of(context).colorScheme;
     // Decode thumbnails at their on-screen resolution instead of full size:
     // these cards render ~200dp tall in a horizontal list, but source images
     // can be several MB/multiple megapixels. Without this, every card decodes
@@ -26,83 +27,101 @@ class ProductCard extends ConsumerWidget {
     final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     final cacheDimension = (tileSize * devicePixelRatio).round();
 
-    return InkWell(
-      onTap: () => ref.read(selectionControllerProvider.notifier).toggle(product),
-      child: Container(
-        width: tileSize,
-        padding: const EdgeInsets.all(8.0),
-        child: Stack(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(
-                imageUrl: product.imageUrl,
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: double.infinity,
-                memCacheWidth: cacheDimension,
-                memCacheHeight: cacheDimension,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (context, url) => const Center(
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                errorWidget: (context, url, error) => Container(
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(10),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => ref.read(selectionControllerProvider.notifier).toggle(product),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          width: tileSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isSelected ? 0.22 : 0.10),
+                blurRadius: isSelected ? 16 : 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: product.imageUrl,
+                  fit: BoxFit.contain,
+                  memCacheWidth: cacheDimension,
+                  memCacheHeight: cacheDimension,
+                  fadeInDuration: const Duration(milliseconds: 150),
+                  placeholder: (context, url) => Container(
+                    color: scheme.surfaceContainerHighest,
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.broken_image_outlined, color: Colors.grey),
-                        SizedBox(height: 4),
-                        Text(
-                          'Image unavailable',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
-                          textAlign: TextAlign.center,
+                  errorWidget: (context, url, error) => Container(
+                    color: scheme.surfaceContainerHighest,
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Image unavailable',
+                            style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                AnimatedOpacity(
+                  duration: const Duration(milliseconds: 180),
+                  opacity: isSelected ? 1 : 0,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            scheme.primary.withValues(alpha: 0.55),
+                            scheme.primary.withValues(alpha: 0.25),
+                          ],
                         ),
-                      ],
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white,
+                            border: Border.all(color: scheme.primary, width: 2),
+                          ),
+                          child: Text(
+                            selectionNumber > 0 ? selectionNumber.toString() : '',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: scheme.primary,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withAlpha(70),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(4.0),
-                  child: Icon(
-                    isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: isSelected ? Colors.blue : Colors.grey,
-                  ),
-                ),
-              ),
-            ),
-            if (selectionNumber > 0)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: Colors.blue,
-                  child: Text(
-                    selectionNumber.toString(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-          ],
+          ),
         ),
       ),
     );

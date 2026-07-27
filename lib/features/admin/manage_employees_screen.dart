@@ -176,7 +176,6 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
                       labelText: 'Search',
                       hintText: 'Name, username, area, designation, email',
                       prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
                       isDense: true,
                     ),
                     onChanged: (_) => setState(() {}),
@@ -233,12 +232,16 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.redAccent.withValues(alpha: 0.15),
+                                color: Theme.of(context).colorScheme.error.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(4),
                               ),
-                              child: const Text(
+                              child: Text(
                                 'Suspended',
-                                style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                           ],
@@ -268,7 +271,7 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
                                   onPressed: () => _resetPassword(context, ref, employee),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.redAccent),
+                                  icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
                                   tooltip: 'Remove',
                                   onPressed: () => _delete(context, ref, employee),
                                 ),

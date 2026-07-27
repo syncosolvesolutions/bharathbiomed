@@ -34,48 +34,79 @@ class AdminProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
+      borderRadius: BorderRadius.circular(16.0),
       onTap: onTap,
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Stack(
-          alignment: Alignment.bottomLeft,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: product.imageUrl.isEmpty
-                  ? const Center(child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey))
-                  : CachedNetworkImage(
-                      imageUrl: product.imageUrl,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: double.infinity,
-                      placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
-                      errorWidget: (context, url, error) => const Icon(Icons.broken_image_outlined),
-                    ),
-            ),
-            Container(
-              width: double.infinity,
-              color: Colors.black54,
-              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: Text(
-                      product.name,
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                    onPressed: () => _confirmDelete(context),
-                  ),
-                ],
-              ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16.0),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16.0),
+          child: AspectRatio(
+            aspectRatio: 16 / 9,
+            child: Stack(
+              alignment: Alignment.bottomLeft,
+              children: [
+                Positioned.fill(
+                  child: product.imageUrl.isEmpty
+                      ? Container(
+                          color: scheme.surfaceContainerHighest,
+                          child: Icon(Icons.image_not_supported, size: 64, color: scheme.onSurfaceVariant),
+                        )
+                      : CachedNetworkImage(
+                          imageUrl: product.imageUrl,
+                          fit: BoxFit.contain,
+                          width: double.infinity,
+                          height: double.infinity,
+                          placeholder: (context, url) => Container(
+                            color: scheme.surfaceContainerHighest,
+                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: scheme.surfaceContainerHighest,
+                            child: Icon(Icons.broken_image_outlined, color: scheme.onSurfaceVariant),
+                          ),
+                        ),
+                ),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(10.0, 20.0, 4.0, 4.0),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.black.withValues(alpha: 0), Colors.black.withValues(alpha: 0.65)],
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          product.name,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: scheme.error, size: 20),
+                        onPressed: () => _confirmDelete(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -7,6 +7,7 @@ import 'package:quickalert/quickalert.dart';
 
 import '../../core/connectivity/connectivity_provider.dart';
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
 import '../../data/providers.dart';
 import '../catalog/catalog_controller.dart';
@@ -188,120 +189,168 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final connectivity = ref.watch(connectivityProvider);
     final isSigningIn = ref.watch(authControllerProvider).isLoading;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                Image.asset('assets/blogo.png', height: 50, width: 50),
-                const SizedBox(height: 16),
-                connectivity.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (error, _) => const SizedBox.shrink(),
-                  data: (results) => Text(
-                    NetworkStatus.describe(results),
-                    style: TextStyle(
-                      color: NetworkStatus.isOffline(results) ? Colors.orange : Colors.green,
-                      fontSize: 14,
-                    ),
+          child: Column(
+            children: <Widget>[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(24, 64, 24, 40),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [scheme.primaryContainer, Theme.of(context).scaffoldBackgroundColor],
+                  ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
                   ),
                 ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Offline Mode',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'This app works fully offline using the last data you synced.',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _continueOffline,
-                  child: const Text('Continue Offline'),
-                ),
-                const SizedBox(height: 32),
-                if (!_signInSectionExpanded)
-                  TextButton(
-                    onPressed: () => setState(() => _signInSectionExpanded = true),
-                    child: const Text('Sign in to download / sync data'),
-                  )
-                else ...[
-                  const Divider(),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Sign in to sync data',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email or Username',
-                      helperText: 'Admin: your email. Medical Reps: the username your admin gave you.',
-                    ),
-                    validator: Validators.loginIdentifier,
-                  ),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    obscureText: true,
-                    validator: Validators.password,
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _forgotPassword,
-                      child: const Text('Forgot password?'),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ElevatedButton(
-                    onPressed: isSigningIn ? null : _login,
-                    child: isSigningIn
-                        ? const SizedBox(
-                            height: 16,
-                            width: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign In & Sync'),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                child: Column(
                   children: [
-                    const Text('By continuing, you agree to our', style: TextStyle(fontSize: 12)),
-                    TextButton(
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                      onPressed: () => context.push('/legal/terms'),
-                      child: const Text(
-                        'Terms & Conditions',
-                        style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
-                      ),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
+                      child: Image.asset('assets/blogo.png', height: 56, width: 56),
                     ),
-                    const Text('and', style: TextStyle(fontSize: 12)),
-                    TextButton(
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
-                      onPressed: () => context.push('/legal/privacy'),
-                      child: const Text(
-                        'Privacy Policy',
-                        style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
-                      ),
+                    const SizedBox(height: 16),
+                    connectivity.when(
+                      loading: () => const SizedBox.shrink(),
+                      error: (error, _) => const SizedBox.shrink(),
+                      data: (results) {
+                        final offline = NetworkStatus.isOffline(results);
+                        final statusColor = offline ? AppTheme.warning : AppTheme.success;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            NetworkStatus.describe(results),
+                            style: TextStyle(color: statusColor, fontSize: 13, fontWeight: FontWeight.w600),
+                          ),
+                        );
+                      },
                     ),
-                    const Text('.', style: TextStyle(fontSize: 12)),
+                    const SizedBox(height: 20),
+                    Text('Offline Mode', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text(
+                      'This app works fully offline using the last data you synced.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: _continueOffline,
+                      child: const Text('Continue Offline'),
+                    ),
                   ],
                 ),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+                child: Column(
+                  children: [
+                    if (!_signInSectionExpanded)
+                      TextButton(
+                        onPressed: () => setState(() => _signInSectionExpanded = true),
+                        child: const Text('Sign in to download / sync data'),
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).cardTheme.color,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('Sign in to sync data', style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _emailController,
+                              decoration: const InputDecoration(
+                                labelText: 'Email or Username',
+                                helperText: 'Admin: your email. Medical Reps: the username your admin gave you.',
+                              ),
+                              validator: Validators.loginIdentifier,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _passwordController,
+                              decoration: const InputDecoration(labelText: 'Password'),
+                              obscureText: true,
+                              validator: Validators.password,
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _forgotPassword,
+                                child: const Text('Forgot password?'),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Center(
+                              child: ElevatedButton(
+                                onPressed: isSigningIn ? null : _login,
+                                child: isSigningIn
+                                    ? const SizedBox(
+                                        height: 16,
+                                        width: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Text('Sign In & Sync'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text('By continuing, you agree to our', style: TextStyle(fontSize: 12)),
+                        TextButton(
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                          onPressed: () => context.push('/legal/terms'),
+                          child: const Text(
+                            'Terms & Conditions',
+                            style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
+                          ),
+                        ),
+                        const Text('and', style: TextStyle(fontSize: 12)),
+                        TextButton(
+                          style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                          onPressed: () => context.push('/legal/privacy'),
+                          child: const Text(
+                            'Privacy Policy',
+                            style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
+                          ),
+                        ),
+                        const Text('.', style: TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

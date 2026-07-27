@@ -110,7 +110,7 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
                 Expanded(
                   child: TextField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'New department name', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'New department name'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -128,7 +128,6 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
               decoration: const InputDecoration(
                 labelText: 'Search departments',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
                 isDense: true,
               ),
               onChanged: (_) => setState(() {}),
@@ -154,7 +153,7 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
                           children: [
                             IconButton(icon: const Icon(Icons.edit), onPressed: () => _rename(department)),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                              icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
                               onPressed: () => _delete(department),
                             ),
                           ],

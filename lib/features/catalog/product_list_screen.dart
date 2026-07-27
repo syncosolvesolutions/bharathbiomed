@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/app_theme.dart';
 import '../admin/admin_access.dart';
 import '../auth/auth_controller.dart';
 import 'catalog_controller.dart';
@@ -83,9 +84,10 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(Icons.download_sharp, size: 40),
+                : const Icon(Icons.download_sharp),
+            tooltip: 'Sync catalog',
             onPressed: _isSyncing ? null : _syncCatalog,
-            color: Colors.green,
+            color: AppTheme.success,
           ),
         ],
       ),

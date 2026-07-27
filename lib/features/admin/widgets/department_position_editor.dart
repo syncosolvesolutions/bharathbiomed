@@ -38,7 +38,7 @@ class DepartmentPositionEditor extends StatelessWidget {
                   key: ValueKey(department),
                   initialValue: (positions[department] ?? 0).toString(),
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Position', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Position'),
                   onChanged: (value) => onChanged(department, int.tryParse(value) ?? 0),
                 ),
               ),

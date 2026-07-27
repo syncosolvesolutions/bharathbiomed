@@ -111,7 +111,7 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
                 Expanded(
                   child: TextField(
                     controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'New designation name', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'New designation name'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -129,7 +129,6 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
               decoration: const InputDecoration(
                 labelText: 'Search designations',
                 prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
                 isDense: true,
               ),
               onChanged: (_) => setState(() {}),
@@ -155,7 +154,7 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
                           children: [
                             IconButton(icon: const Icon(Icons.edit), onPressed: () => _rename(designation)),
                             IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.redAccent),
+                              icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
                               onPressed: () => _delete(designation),
                             ),
                           ],

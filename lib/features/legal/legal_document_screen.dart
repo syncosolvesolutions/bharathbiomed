@@ -20,11 +20,14 @@ class LegalDocumentScreen extends StatelessWidget {
         children: [
           Text(
             'Last updated: $legalLastUpdated',
-            style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontStyle: FontStyle.italic,
+            ),
           ),
           const SizedBox(height: 16),
           for (final section in sections) ...[
-            Text(section.heading, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text(section.heading, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final paragraph in section.paragraphs) ...[
               Text(paragraph),

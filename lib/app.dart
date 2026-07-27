@@ -72,6 +72,8 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
       title: 'Bharath Biomed Pharma',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.system,
       routerConfig: router,
     );
   }
