@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -42,6 +44,23 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 /// whenever one arrives, so the offline cache (and whatever's on screen)
 /// stays current without a field rep having to notice a change happened and
 /// reach for the manual sync button themselves.
+
+Future<bool> checkIsPhysicalDevice() async {
+  DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+
+  if (Platform.isIOS) {
+    IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+    return iosInfo.isPhysicalDevice;
+  } else if (Platform.isAndroid) {
+    AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+    return androidInfo.isPhysicalDevice;
+  }
+
+  // Fallback for other platforms (Web, Desktop, etc.)
+  return true; 
+}
+
+
 class PushNotificationService {
   PushNotificationService(this._ref);
 
@@ -50,6 +69,11 @@ class PushNotificationService {
   Future<void> initialize() async {
     final messaging = FirebaseMessaging.instance;
 
+    bool isRealDevice = await checkIsPhysicalDevice();
+    if (!isRealDevice) {
+      debugPrint('PushNotificationService: running on an emulator/simulator, skipping push notification setup.');
+      return;
+    }
     // Best-effort: a user who denies the permission prompt (or is on a
     // platform/version where it's not required) still gets pushes on
     // Android; iOS/web just won't display the notification banner, but the
