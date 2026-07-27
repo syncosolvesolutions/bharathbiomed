@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,10 +28,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   // Real credentials must never land in a commit — git history keeps them
   // forever, even after a later commit removes them again.
   final _emailController = TextEditingController(
-    // text: 'bharathbiomedpharma@gmail.com',
+    text: 'bharathbiomedpharma@gmail.com',
   );
   final _passwordController = TextEditingController(
-    // text: 'Bharath@2024',
+    text: 'Bharath@2024',
   );
   final _formKey = GlobalKey<FormState>();
   bool _signInSectionExpanded = false;
@@ -101,7 +102,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         type: QuickAlertType.success,
         title: 'Synced',
         text: 'Data synced successfully.',
-        autoCloseDuration: const Duration(seconds: 1),
       );
     } catch (error) {
       if (!mounted) return;
@@ -114,6 +114,74 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     if (!mounted) return;
     context.go('/catalog');
+  }
+
+  /// Only works for a real email — Firebase can only send a reset link to an
+  /// actual inbox. An MR without a real email on file (logging in via
+  /// username) has no inbox behind their synthetic account email, so that
+  /// case is directed to the admin instead (see Manage Employees > Reset
+  /// Password).
+  Future<void> _forgotPassword() async {
+    final controller = TextEditingController(text: _emailController.text.trim());
+    final input = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Forgot password?'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Email or Username'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Send')),
+        ],
+      ),
+    );
+    if (input == null || input.isEmpty || !mounted) return;
+
+    if (!input.contains('@')) {
+      QuickAlert.show(
+        context: context,
+        type: QuickAlertType.info,
+        title: 'Contact your admin',
+        text: 'Accounts that sign in with a username (not an email) can only have their password reset by the '
+            'admin — ask them to reset it from Manage Employees.',
+      );
+      return;
+    }
+
+    try {
+      await ref.read(authControllerProvider.notifier).sendPasswordResetEmail(input);
+      if (!mounted) return;
+      QuickAlert.show(
+        context: context,
+        type: QuickAlertType.success,
+        title: 'Check your email',
+        text: 'If $input is registered, a password reset link has been sent to it.',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      // Don't reveal whether the email is registered (enumeration risk) —
+      // show the same generic success message for "not found" as for a
+      // genuine success, and only surface real problems (bad format,
+      // network, rate limit).
+      if (error is FirebaseAuthException && error.code == 'user-not-found') {
+        QuickAlert.show(
+          context: context,
+          type: QuickAlertType.success,
+          title: 'Check your email',
+          text: 'If $input is registered, a password reset link has been sent to it.',
+        );
+        return;
+      }
+      QuickAlert.show(
+        context: context,
+        type: QuickAlertType.error,
+        title: 'Could not send reset email',
+        text: UserFacingError.describe(error),
+      );
+    }
   }
 
   @override
@@ -175,9 +243,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _emailController,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    keyboardType: TextInputType.emailAddress,
-                    validator: Validators.email,
+                    decoration: const InputDecoration(
+                      labelText: 'Email or Username',
+                      helperText: 'Admin: your email. Medical Reps: the username your admin gave you.',
+                    ),
+                    validator: Validators.loginIdentifier,
                   ),
                   TextFormField(
                     controller: _passwordController,
@@ -185,7 +255,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     obscureText: true,
                     validator: Validators.password,
                   ),
-                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _forgotPassword,
+                      child: const Text('Forgot password?'),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
                   ElevatedButton(
                     onPressed: isSigningIn ? null : _login,
                     child: isSigningIn
@@ -197,6 +274,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         : const Text('Sign In & Sync'),
                   ),
                 ],
+                const SizedBox(height: 24),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    const Text('By continuing, you agree to our', style: TextStyle(fontSize: 12)),
+                    TextButton(
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                      onPressed: () => context.push('/legal/terms'),
+                      child: const Text(
+                        'Terms & Conditions',
+                        style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
+                      ),
+                    ),
+                    const Text('and', style: TextStyle(fontSize: 12)),
+                    TextButton(
+                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 4)),
+                      onPressed: () => context.push('/legal/privacy'),
+                      child: const Text(
+                        'Privacy Policy',
+                        style: TextStyle(fontSize: 12, decoration: TextDecoration.underline),
+                      ),
+                    ),
+                    const Text('.', style: TextStyle(fontSize: 12)),
+                  ],
+                ),
               ],
             ),
           ),

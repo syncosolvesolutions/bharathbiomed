@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../admin/admin_access.dart';
+import '../auth/auth_controller.dart';
 import 'catalog_controller.dart';
 import 'selection_controller.dart';
 import 'widgets/category_section.dart';
@@ -55,11 +57,25 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = ref.watch(catalogControllerProvider);
+    final isAdmin = ref.watch(isAdminProvider);
+    final isSignedIn = ref.watch(authControllerProvider).value != null;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bharath Biomed Pharma'),
         actions: [
+          if (isAdmin)
+            IconButton(
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              tooltip: 'Admin',
+              onPressed: () => context.push('/admin'),
+            ),
+          if (isSignedIn)
+            IconButton(
+              icon: const Icon(Icons.lock_outline),
+              tooltip: 'Change Password',
+              onPressed: () => context.push('/account/change-password'),
+            ),
           IconButton(
             icon: _isSyncing
                 ? const SizedBox(

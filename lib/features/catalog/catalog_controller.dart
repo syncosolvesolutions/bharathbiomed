@@ -22,5 +22,16 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
   Future<void> sync() async {
     final snapshot = await ref.read(productRepositoryProvider).sync();
     state = AsyncData(snapshot);
+
+    // Best-effort: this is the one point this app talks to the server
+    // without the user having explicitly asked for *this* — piggybacking on
+    // an action they did explicitly ask for (sync) rather than uploading on
+    // its own whenever connectivity appears. A failure here must never mask
+    // the catalog sync succeeding.
+    try {
+      await ref.read(usageSessionRepositoryProvider).uploadPending();
+    } catch (_) {
+      // Intentionally ignored — see comment above.
+    }
   }
 }

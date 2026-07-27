@@ -3,6 +3,16 @@
 Firebase-email/password sign-in, used only to unlock the "sync" action — this
 app is designed to be used offline day-to-day (see `catalog/SKILL.md`).
 
+Two kinds of accounts share this one sign-in form: the admin (a real email,
+allowlisted in `core/auth/admin_access.dart`) and Medical Representatives
+(created by the admin — see `features/admin/`, who log in with a plain
+username instead of an email). `core/auth/employee_login.dart`'s
+`resolveLoginEmail` is what lets both use the same field: a real email passes
+through untouched, a bare username gets turned into its synthetic
+`mr-<username>@...` Firebase Auth email before `AuthRepository.signIn` ever
+sees it. That synthetic-domain convention must stay in sync with
+`functions/src/adminAccess.ts`'s `usernameToEmail`.
+
 ## Files
 
 - `auth_controller.dart` — `authControllerProvider` (`AsyncNotifier<User?>`).

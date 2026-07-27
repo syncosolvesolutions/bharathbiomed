@@ -15,6 +15,7 @@ class UserFacingError {
     if (error is FirebaseException) return _firestoreMessage(error);
     if (error is TimeoutException) return 'The request timed out. Check your connection and try again.';
     if (error is SocketException) return 'No internet connection. Check your network and try again.';
+    if (error is StateError) return 'You need to be signed in to do that. Please sign in and try again.';
     return error.toString();
   }
 

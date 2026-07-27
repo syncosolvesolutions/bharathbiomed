@@ -31,4 +31,15 @@ class AuthController extends AsyncNotifier<User?> {
     await ref.read(authRepositoryProvider).signOut();
     state = const AsyncData(null);
   }
+
+  /// Doesn't touch [state] — the signed-in user's identity doesn't change,
+  /// only their password. Callers should catch and report failures
+  /// themselves (see [features/auth/change_password_screen.dart]).
+  Future<void> changePassword({required String currentPassword, required String newPassword}) {
+    return ref.read(authRepositoryProvider).changePassword(currentPassword: currentPassword, newPassword: newPassword);
+  }
+
+  Future<void> sendPasswordResetEmail(String email) {
+    return ref.read(authRepositoryProvider).sendPasswordResetEmail(email);
+  }
 }

@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// NOTE: this repo previously had no firestore.rules under version control —
+// whatever was configured in the Firebase console is the actual source of
+// truth today. Review these against the console rules before deploying
+// (`firebase deploy --only firestore:rules`) so you don't accidentally
+// loosen or break existing access.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Mirrors the allowlist in lib/core/auth/admin_access.dart and
+    // functions/src/adminAccess.ts. Keep all three in sync.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'bharathbiomedpharma@gmail.com';
+    }
+
+    // Catalog data: every signed-in user (reps and admin alike) can read it
+    // to sync their device; only the admin can write it directly. Sales
+    // reps go through Cloud Functions for nothing here — direct writes from
+    // the admin app are fine since only the admin account can perform them.
+    match /Products/{productId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /Department/{departmentDoc} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Designation options (e.g. "Medical Representative", "Area Business
+    // Manager") admin assigns to employees when creating their profile.
+    // Purely an admin-management concern, so unlike Products/Department
+    // it isn't read by the sales/reps side of the app at all.
+    match /Designations/{designationId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Medical Representative profiles. Only the admin may read the list
+    // (to show it in "Manage Employees"). Nobody writes here directly —
+    // creation/deletion goes through the createEmployee/deleteEmployee
+    // Cloud Functions, which use the Admin SDK and bypass these rules.
+    match /Users/{uid} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // MR app-usage sessions (open/close timestamps, duration, location at
+    // open) — see lib/features/tracking/. Uploaded directly by the MR's own
+    // client (not via a Cloud Function, since this is just an employee
+    // reporting their own usage, not a privileged operation), but only ever
+    // about themselves: the doc's employeeUid must match the caller's own
+    // uid, so a compromised client can't write a session claiming to be
+    // someone else. Only the admin can read the log; nobody can update
+    // (beyond the one retry-safe overwrite of their own doc) or delete it —
+    // this is meant to be an append-only record.
+    match /UsageSessions/{sessionId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.employeeUid == request.auth.uid;
+      // The app never actually rewrites an existing session doc once it's
+      // synced (see UsageSessionRepository.uploadPending), but the rule
+      // still has to cover the case since the client writes with `set`, not
+      // `create`. Lock the fields that describe when/where the session
+      // started so a compromised client can't rewrite session history —
+      // only closedAt/durationSeconds/uploadedAt may change after creation.
+      allow update: if isSignedIn()
+        && resource.data.employeeUid == request.auth.uid
+        && request.resource.data.employeeUid == request.auth.uid
+        && request.resource.data.openedAt == resource.data.openedAt
+        && request.resource.data.latitude == resource.data.latitude
+        && request.resource.data.longitude == resource.data.longitude;
+      allow delete: if false;
+    }
+  }
+}

@@ -40,8 +40,38 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Catalog-update pushes (see lib/core/notifications/) are sent
+             with this channel id so Android groups/labels them consistently
+             instead of falling back to an auto-generated "Miscellaneous"
+             channel. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="catalog_updates" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/launcher_icon" />
+        <!-- Required by image_cropper (admin product/employee photo picking);
+             it doesn't bundle this activity itself. Locked to landscape,
+             matching this app's own orientation lock in main.dart — the
+             package's docs default to portrait, which would fight the
+             kiosk-mode orientation lock on this tablet-only app. -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="landscape"
+            android:theme="@style/Ucrop.CropTheme" />
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Foreground-only: captures the device's location when an MR opens the
+         app, for the admin usage dashboard (see lib/features/tracking/).
+         Not background location — no special Play Store declaration needed. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <!-- Required on Android 13+ to actually display catalog-update push
+         notifications; firebase_messaging's runtime requestPermission()
+         call (see PushNotificationService.initialize) is what prompts the
+         user, but the manifest declaration is what makes that prompt legal
+         to ask for. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility?hl=en and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.

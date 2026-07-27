@@ -1,1 +1,55 @@
-{"hosting":{"public":"public","ignore":["firebase.json","**/.*","**/node_modules/**"]},"flutter":{"platforms":{"android":{"default":{"projectId":"bharathbiomedpharma-6c6c3","appId":"1:830540132112:android:e222df6854b8bf5eed3f95","fileOutput":"android/app/google-services.json"}},"ios":{"default":{"projectId":"bharathbiomedpharma-6c6c3","appId":"1:830540132112:ios:5be2e7cbb6fb6799ed3f95","uploadDebugSymbols":true,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"macos":{"default":{"projectId":"bharathbiomedpharma-6c6c3","appId":"1:830540132112:ios:5be2e7cbb6fb6799ed3f95","uploadDebugSymbols":true,"fileOutput":"macos/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"bharathbiomedpharma-6c6c3","configurations":{"android":"1:830540132112:android:e222df6854b8bf5eed3f95","ios":"1:830540132112:ios:5be2e7cbb6fb6799ed3f95","macos":"1:830540132112:ios:5be2e7cbb6fb6799ed3f95","web":"1:830540132112:web:f5fdbb8365e3bfbbed3f95","windows":"1:830540132112:web:0f1c6602e0136b33ed3f95"}}}}}}
+{
+  "hosting": {
+    "public": "public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": ["node_modules", ".git", "firebase-debug.log", "firebase-debug.*.log", "*.local"]
+    }
+  ],
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "bharathbiomedpharma-6c6c3",
+          "appId": "1:830540132112:android:e222df6854b8bf5eed3f95",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "bharathbiomedpharma-6c6c3",
+          "appId": "1:830540132112:ios:5be2e7cbb6fb6799ed3f95",
+          "uploadDebugSymbols": true,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "bharathbiomedpharma-6c6c3",
+          "appId": "1:830540132112:ios:5be2e7cbb6fb6799ed3f95",
+          "uploadDebugSymbols": true,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "bharathbiomedpharma-6c6c3",
+          "configurations": {
+            "android": "1:830540132112:android:e222df6854b8bf5eed3f95",
+            "ios": "1:830540132112:ios:5be2e7cbb6fb6799ed3f95",
+            "macos": "1:830540132112:ios:5be2e7cbb6fb6799ed3f95",
+            "web": "1:830540132112:web:f5fdbb8365e3bfbbed3f95",
+            "windows": "1:830540132112:web:0f1c6602e0136b33ed3f95"
+          }
+        }
+      }
+    }
+  }
+}

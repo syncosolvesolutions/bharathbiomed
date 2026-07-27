@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'core/error/crash_reporter.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'firebase_options.dart';
 
 /// Bootstraps Firebase and global error reporting, then hands off to [BharathBioMedApp].
@@ -31,6 +33,12 @@ void main() async {
   // uses its own sqflite cache instead), but persistence is left on since
   // it's harmless and free.
   FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+
+  // Must be registered before runApp so a catalog-update push can trigger a
+  // sync even while the app is backgrounded or fully terminated. Foreground
+  // handling (PushNotificationService.initialize) is wired up from app.dart
+  // once a BuildContext/Ref exists.
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   FlutterError.onError = (errorDetails) {
     FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);

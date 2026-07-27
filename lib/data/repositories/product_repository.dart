@@ -72,6 +72,46 @@ class ProductRepository {
     return CatalogSnapshot(products: products, departments: departments);
   }
 
+  /// Live read straight from Firestore, bypassing the local cache — used by
+  /// the admin section, which must always act on current server data rather
+  /// than whatever this device last synced.
+  Future<CatalogSnapshot> fetchLiveCatalog() async {
+    final products = await _remote.fetchProducts();
+    final departments = await _remote.fetchDepartments();
+    return CatalogSnapshot(products: products, departments: departments);
+  }
+
+  Future<String> createProduct({
+    required String name,
+    required String info,
+    required Map<String, int> departments,
+    required String imageUrl,
+  }) {
+    return _remote.addProduct(name: name, info: info, departments: departments, imageUrl: imageUrl);
+  }
+
+  Future<void> updateProduct(Product product) => _remote.updateProduct(product);
+
+  Future<void> deleteProduct(String id) => _remote.deleteProduct(id);
+
+  Future<void> addDepartment(String name) async {
+    final existing = await _remote.fetchDepartments();
+    if (existing.any((d) => d.toLowerCase() == name.toLowerCase())) {
+      throw Exception('A department named "$name" already exists.');
+    }
+    await _remote.addDepartment(name);
+  }
+
+  Future<void> renameDepartment(String oldName, String newName) async {
+    final existing = await _remote.fetchDepartments();
+    if (existing.any((d) => d.toLowerCase() != oldName.toLowerCase() && d.toLowerCase() == newName.toLowerCase())) {
+      throw Exception('A department named "$newName" already exists.');
+    }
+    await _remote.renameDepartment(oldName, newName);
+  }
+
+  Future<void> deleteDepartment(String name) => _remote.deleteDepartment(name);
+
   static Future<void> _defaultPrecacheImages(List<String> imageUrls) async {
     const concurrency = 6;
     for (var i = 0; i < imageUrls.length; i += concurrency) {
