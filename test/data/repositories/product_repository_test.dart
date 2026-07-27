@@ -30,17 +30,24 @@ void main() {
   setUp(() {
     local = MockProductLocalDataSource();
     remote = MockProductRemoteDataSource();
-    repository = ProductRepository(remote: remote, local: local);
+    repository = ProductRepository(
+      remote: remote,
+      local: local,
+      // Real image precaching hits platform channels (path_provider) that
+      // aren't available in plain `test()` unit tests; these tests care
+      // about repository logic, not image-cache warming, so stub it out.
+      precacheImages: (_) async {},
+    );
   });
 
   group('hasCachedCatalog', () {
     test('is false when the local cache is empty', () async {
-      when(() => local.getProducts()).thenAnswer((_) async => []);
+      when(() => local.hasProducts()).thenAnswer((_) async => false);
       expect(await repository.hasCachedCatalog(), isFalse);
     });
 
     test('is true when the local cache has products', () async {
-      when(() => local.getProducts()).thenAnswer((_) async => [product]);
+      when(() => local.hasProducts()).thenAnswer((_) async => true);
       expect(await repository.hasCachedCatalog(), isTrue);
     });
   });
@@ -78,6 +85,33 @@ void main() {
 
       expect(() => repository.sync(), throwsException);
       verifyNever(() => local.replaceAll(products: any(named: 'products'), departments: any(named: 'departments')));
+    });
+
+    test('refuses to overwrite the local cache when Firestore returns an empty catalog', () async {
+      when(() => remote.fetchProducts()).thenAnswer((_) async => []);
+      when(() => remote.fetchDepartments()).thenAnswer((_) async => []);
+
+      expect(() => repository.sync(), throwsException);
+      verifyNever(() => local.replaceAll(products: any(named: 'products'), departments: any(named: 'departments')));
+    });
+
+    test('kicks off best-effort precaching of product images after a successful sync', () async {
+      when(() => remote.fetchProducts()).thenAnswer((_) async => [product]);
+      when(() => remote.fetchDepartments()).thenAnswer((_) async => ['General']);
+      when(() => local.replaceAll(products: any(named: 'products'), departments: any(named: 'departments')))
+          .thenAnswer((_) async {});
+
+      List<String>? precachedUrls;
+      final repositoryWithPrecacheSpy = ProductRepository(
+        remote: remote,
+        local: local,
+        precacheImages: (urls) async => precachedUrls = urls,
+      );
+
+      await repositoryWithPrecacheSpy.sync();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(precachedUrls, [product.imageUrl]);
     });
   });
 }

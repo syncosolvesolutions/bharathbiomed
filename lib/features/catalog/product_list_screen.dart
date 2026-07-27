@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/user_facing_error.dart';
 import 'catalog_controller.dart';
 import 'selection_controller.dart';
 import 'widgets/category_section.dart';
@@ -29,7 +30,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     } catch (error) {
       // Deliberately don't rethrow: catalogControllerProvider keeps showing
       // whatever was last synced, so the user isn't left with a blank screen.
-      resultMessage = 'Sync failed: $error';
+      resultMessage = 'Sync failed: ${UserFacingError.describe(error)}';
     }
 
     if (!mounted) return;
@@ -76,7 +77,22 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         padding: const EdgeInsets.all(8.0),
         child: catalog.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(child: Text('Failed to load catalog: $error')),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Failed to load catalog: ${UserFacingError.describe(error)}',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () => ref.invalidate(catalogControllerProvider),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
           data: (snapshot) {
             if (snapshot.departments.isEmpty) {
               return const Center(

@@ -12,6 +12,14 @@ class ProductLocalDataSource {
 
   final AppDatabase _database;
 
+  /// Cheap existence check — avoids loading every cached row (including
+  /// each product's departments JSON) just to answer a yes/no question.
+  Future<bool> hasProducts() async {
+    final db = await _database.database;
+    final result = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM products'));
+    return (result ?? 0) > 0;
+  }
+
   Future<List<Product>> getProducts() async {
     final db = await _database.database;
     final rows = await db.query('products');

@@ -1,3 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+
 import '../../domain/models/product.dart';
 import '../local/product_local_data_source.dart';
 import '../remote/product_remote_data_source.dart';
@@ -16,16 +21,16 @@ class ProductRepository {
   ProductRepository({
     ProductRemoteDataSource? remote,
     ProductLocalDataSource? local,
+    Future<void> Function(List<String> imageUrls)? precacheImages,
   })  : _remote = remote ?? ProductRemoteDataSource(),
-        _local = local ?? ProductLocalDataSource();
+        _local = local ?? ProductLocalDataSource(),
+        _precacheImages = precacheImages ?? _defaultPrecacheImages;
 
   final ProductRemoteDataSource _remote;
   final ProductLocalDataSource _local;
+  final Future<void> Function(List<String> imageUrls) _precacheImages;
 
-  Future<bool> hasCachedCatalog() async {
-    final products = await _local.getProducts();
-    return products.isNotEmpty;
-  }
+  Future<bool> hasCachedCatalog() => _local.hasProducts();
 
   Future<CatalogSnapshot> loadCachedCatalog() async {
     final products = await _local.getProducts();
@@ -34,10 +39,52 @@ class ProductRepository {
   }
 
   /// Fetches the latest catalog from Firestore and overwrites the local cache.
+  ///
+  /// Refuses to overwrite the cache if Firestore comes back empty: an empty
+  /// result is far more likely to mean a misconfigured query, a permissions
+  /// change, or a degraded connection than "the catalog is genuinely empty
+  /// now" — and since this app is offline-first, silently wiping the local
+  /// cache here would delete the only copy of the catalog the device has.
   Future<CatalogSnapshot> sync() async {
-    final products = await _remote.fetchProducts();
-    final departments = await _remote.fetchDepartments();
+    final products = await _remote.fetchProducts().timeout(
+          _syncTimeout,
+          onTimeout: () => throw Exception('Timed out contacting the server. Check your connection and try again.'),
+        );
+    final departments = await _remote.fetchDepartments().timeout(
+          _syncTimeout,
+          onTimeout: () => throw Exception('Timed out contacting the server. Check your connection and try again.'),
+        );
+
+    if (products.isEmpty || departments.isEmpty) {
+      throw Exception('Server returned an empty catalog; keeping the existing data on this device.');
+    }
+
     await _local.replaceAll(products: products, departments: departments);
+
+    // Best-effort: warm the image cache so the catalog is actually usable
+    // offline right after a sync, instead of only caching each image the
+    // first time its card happens to scroll into view. Runs in the
+    // background — sync() itself must not block on every product's image
+    // download, and a few failed/slow images shouldn't fail the sync.
+    final imageUrls = products.map((p) => p.imageUrl).where((url) => url.isNotEmpty).toList();
+    unawaited(_precacheImages(imageUrls));
+
     return CatalogSnapshot(products: products, departments: departments);
   }
+
+  static Future<void> _defaultPrecacheImages(List<String> imageUrls) async {
+    const concurrency = 6;
+    for (var i = 0; i < imageUrls.length; i += concurrency) {
+      final batch = imageUrls.skip(i).take(concurrency);
+      await Future.wait(batch.map((url) async {
+        try {
+          await DefaultCacheManager().getSingleFile(url);
+        } catch (error) {
+          debugPrint('ProductRepository: failed to precache image $url: $error');
+        }
+      }));
+    }
+  }
+
+  static const _syncTimeout = Duration(seconds: 30);
 }

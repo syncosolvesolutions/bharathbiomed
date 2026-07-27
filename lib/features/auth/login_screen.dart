@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/connectivity/connectivity_provider.dart';
+import '../../core/error/user_facing_error.dart';
 import '../../core/utils/validators.dart';
 import '../../data/providers.dart';
 import '../catalog/catalog_controller.dart';
@@ -86,10 +86,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final authState = ref.read(authControllerProvider);
     if (authState.hasError) {
-      final error = authState.error;
-      final message = error is FirebaseAuthException
-          ? (error.message ?? 'Failed to sign in. Please check your credentials and try again.')
-          : 'Failed to sign in. Please check your credentials and try again.';
+      final message = UserFacingError.describe(authState.error!);
       QuickAlert.show(context: context, type: QuickAlertType.error, title: 'Sign-in error', text: message);
       return;
     }
@@ -112,7 +109,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context: context,
         type: QuickAlertType.warning,
         title: 'Signed in, but sync failed',
-        text: 'Could not download the latest data: $error. You can retry from the sync button.',
+        text: '${UserFacingError.describe(error)} You can retry from the sync button.',
       );
     }
     if (!mounted) return;

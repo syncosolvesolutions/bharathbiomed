@@ -1,6 +1,6 @@
 # Privacy Policy — Bharath Biomed Pharma App
 
-_Last updated: [fill in date before publishing]_
+_Last updated: 2026-07-25_
 
 This app is provided by Bharath Biomed Pharma ("we", "us"). This policy
 explains what data the Bharath Biomed Pharma mobile app collects and how
@@ -41,7 +41,7 @@ our behalf to provide the services above).
 
 Catalog data cached on your device can be cleared by uninstalling the app.
 To request deletion of your account/sign-in data, contact us at
-[insert contact email].
+swapna.balugu@gmail.com.
 
 ## Children's privacy
 
@@ -55,4 +55,4 @@ changes means you accept the updated policy.
 
 ## Contact
 
-Questions about this policy: [insert contact email].
+Questions about this policy: swapna.balugu@gmail.com.
