@@ -14,18 +14,32 @@ class ProductCard extends ConsumerWidget {
   final Product product;
   final int selectionNumber;
 
+  /// Landscape product-photo ratio, shared with the admin catalog grid
+  /// (AdminProductTile) and the slideshow so a product is framed the same
+  /// shape everywhere it appears in the app.
+  static const aspectRatio = 16 / 9;
+
+  /// Tile width for this device: derived from screen height (the shorter
+  /// dimension in this landscape-locked app) so rows show a consistent
+  /// number of cards regardless of exact device size. [CategorySection]
+  /// reuses this to size the row that hosts these cards.
+  static double widthFor(BuildContext context) => MediaQuery.of(context).size.height / 3;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isSelected = ref.watch(selectionControllerProvider.select((s) => s.contains(product)));
-    final tileSize = MediaQuery.of(context).size.height / 3;
+    final tileWidth = widthFor(context);
+    final tileHeight = tileWidth / aspectRatio;
     final scheme = Theme.of(context).colorScheme;
     // Decode thumbnails at their on-screen resolution instead of full size:
-    // these cards render ~200dp tall in a horizontal list, but source images
-    // can be several MB/multiple megapixels. Without this, every card decodes
-    // and caches a full-resolution bitmap, which is the main cause of jank
-    // and memory pressure when scrolling the catalog.
+    // these cards render at most a couple hundred dp tall in a horizontal
+    // list, but source images can be several MB/multiple megapixels.
+    // Without this, every card decodes and caches a full-resolution bitmap,
+    // which is the main cause of jank and memory pressure when scrolling
+    // the catalog.
     final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
-    final cacheDimension = (tileSize * devicePixelRatio).round();
+    final cacheWidth = (tileWidth * devicePixelRatio).round();
+    final cacheHeight = (tileHeight * devicePixelRatio).round();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
@@ -35,7 +49,8 @@ class ProductCard extends ConsumerWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
-          width: tileSize,
+          width: tileWidth,
+          height: tileHeight,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
@@ -54,8 +69,8 @@ class ProductCard extends ConsumerWidget {
                 CachedNetworkImage(
                   imageUrl: product.imageUrl,
                   fit: BoxFit.contain,
-                  memCacheWidth: cacheDimension,
-                  memCacheHeight: cacheDimension,
+                  memCacheWidth: cacheWidth,
+                  memCacheHeight: cacheHeight,
                   fadeInDuration: const Duration(milliseconds: 150),
                   placeholder: (context, url) => Container(
                     color: scheme.surfaceContainerHighest,

@@ -28,7 +28,10 @@ class CategorySection extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 216,
+          // Matches ProductCard's own width/aspect-ratio math (16:9) plus
+          // its vertical padding, so the row is exactly tall enough for the
+          // card — no letterboxing gap above/below and no clipped shadow.
+          height: ProductCard.widthFor(context) / ProductCard.aspectRatio + 16,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: products.length,

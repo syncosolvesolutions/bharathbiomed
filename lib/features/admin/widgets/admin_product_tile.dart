@@ -54,7 +54,6 @@ class AdminProductTile extends StatelessWidget {
           child: AspectRatio(
             aspectRatio: 16 / 9,
             child: Stack(
-              alignment: Alignment.bottomLeft,
               children: [
                 Positioned.fill(
                   child: product.imageUrl.isEmpty
@@ -77,31 +76,26 @@ class AdminProductTile extends StatelessWidget {
                           ),
                         ),
                 ),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(10.0, 20.0, 4.0, 4.0),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.black.withValues(alpha: 0), Colors.black.withValues(alpha: 0.65)],
+                // No name caption here — the marketing image already carries
+                // the product's branding/name, same as the MR catalog cards.
+                // Delete is its own small fixed-size badge in the corner, kept
+                // deliberately separate from the caption bar above so its tap
+                // target can never inflate that bar's height.
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => _confirmDelete(context),
+                      child: const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Icon(Icons.delete, color: Colors.white, size: 16),
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          product.name,
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.white),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.delete, color: scheme.error, size: 20),
-                        onPressed: () => _confirmDelete(context),
-                      ),
-                    ],
                   ),
                 ),
               ],

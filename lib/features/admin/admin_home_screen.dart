@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
+import '../auth/auth_controller.dart';
 import 'admin_catalog_controller.dart';
+import 'employee_controller.dart';
 
 /// Entry point for the admin section: departments (tap to manage that
 /// department's products) plus links to department/designation/employee
@@ -11,9 +14,29 @@ import 'admin_catalog_controller.dart';
 class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
+  Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You\'ll need to sign in again to reach the admin panel.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Log out')),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    await ref.read(authControllerProvider.notifier).signOut();
+    if (!context.mounted) return;
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final catalog = ref.watch(adminCatalogControllerProvider);
+    final employees = ref.watch(employeeControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -44,6 +67,11 @@ class AdminHomeScreen extends ConsumerWidget {
             tooltip: 'Usage Dashboard',
             onPressed: () => context.push('/admin/dashboard'),
           ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Log out',
+            onPressed: () => _logout(context, ref),
+          ),
         ],
       ),
       body: catalog.when(
@@ -70,11 +98,57 @@ class AdminHomeScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () => ref.read(adminCatalogControllerProvider.notifier).refresh(),
             child: ListView.builder(
-              itemCount: snapshot.departments.length,
+              itemCount: snapshot.departments.length + 1,
               itemBuilder: (context, index) {
-                final department = snapshot.departments[index];
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.apartment,
+                            color: const Color(0xFF3470B2),
+                            label: 'Departments',
+                            value: snapshot.departments.length.toString(),
+                            onTap: () => context.push('/admin/departments'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.inventory_2_outlined,
+                            color: const Color(0xFF2E7D32),
+                            label: 'Products',
+                            value: snapshot.products.length.toString(),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _StatCard(
+                            icon: Icons.people_outline,
+                            color: const Color(0xFFEF6C00),
+                            label: 'Users',
+                            value: employees.maybeWhen(
+                              data: (list) => list.length.toString(),
+                              orElse: () => '–',
+                            ),
+                            onTap: () => context.push('/admin/employees'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                final department = snapshot.departments[index - 1];
                 final count = snapshot.products.where((p) => p.departments.containsKey(department)).length;
+                final color = AccentPalette.forLabel(department);
                 return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: color.withValues(alpha: 0.15),
+                    foregroundColor: color,
+                    child: Text(department.isNotEmpty ? department[0].toUpperCase() : '?'),
+                  ),
                   title: Text(department),
                   subtitle: Text('$count product${count == 1 ? '' : 's'}'),
                   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
@@ -89,6 +163,44 @@ class AdminHomeScreen extends ConsumerWidget {
         onPressed: () => context.push('/admin/products/add'),
         icon: const Icon(Icons.add),
         label: const Text('Add Product'),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({required this.icon, required this.color, required this.label, required this.value, this.onTap});
+
+  final IconData icon;
+  final Color color;
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: color.withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(icon, color: color),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: color)),
+                  Text(label, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

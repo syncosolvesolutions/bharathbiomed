@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/notifications/push_notification_service.dart';
@@ -26,6 +27,11 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Remove the native splash once this root widget has its first frame,
+    // regardless of which route the router lands on first — a signed-in
+    // user is redirected straight past LoginScreen (the only other place
+    // that used to call this), so splash removal can't live there alone.
+    WidgetsBinding.instance.addPostFrameCallback((_) => FlutterNativeSplash.remove());
     // Best-effort, fire-and-forget: subscribes this device to catalog-update
     // pushes and wires up foreground/tap handling. A failure here (denied
     // permission, no Google Play services) shouldn't block the app itself —

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
 import '../../domain/models/employee.dart';
 import 'employee_controller.dart';
 
@@ -217,11 +218,17 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
                     return ListTile(
                       onTap: () => context.push('/admin/employees/edit', extra: employee),
                       leading: CircleAvatar(
+                        backgroundColor: (employee.photoUrl != null && employee.photoUrl!.isNotEmpty)
+                            ? null
+                            : AccentPalette.forLabel(employee.displayName).withValues(alpha: 0.15),
+                        foregroundColor: AccentPalette.forLabel(employee.displayName),
                         backgroundImage: (employee.photoUrl != null && employee.photoUrl!.isNotEmpty)
                             ? NetworkImage(employee.photoUrl!)
                             : null,
                         child: (employee.photoUrl == null || employee.photoUrl!.isEmpty)
-                            ? const Icon(Icons.person)
+                            ? Text(
+                                employee.displayName.isNotEmpty ? employee.displayName[0].toUpperCase() : '?',
+                              )
                             : null,
                       ),
                       title: Row(

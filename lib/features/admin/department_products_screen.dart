@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
 import '../../domain/models/product.dart';
 import 'admin_catalog_controller.dart';
 import 'widgets/admin_product_tile.dart';
@@ -45,19 +46,39 @@ class _DepartmentProductsScreenState extends ConsumerState<DepartmentProductsScr
   @override
   Widget build(BuildContext context) {
     final catalog = ref.watch(adminCatalogControllerProvider);
+    final accent = AccentPalette.forLabel(widget.department);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.department)),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 14,
+              // Solid white (not an alpha-blended tint) so this stays legible
+              // regardless of what's behind it — the app bar is now a solid
+              // brand-blue, not the near-white surface this used to blend
+              // against.
+              backgroundColor: Colors.white,
+              foregroundColor: accent,
+              child: Text(
+                widget.department.isNotEmpty ? widget.department[0].toUpperCase() : '?',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(widget.department),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Search products',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.search, color: accent),
                 isDense: true,
               ),
               onChanged: (_) => setState(() {}),

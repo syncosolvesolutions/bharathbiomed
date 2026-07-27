@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
+import '../../core/theme/app_theme.dart';
 import 'usage_dashboard_controller.dart';
 import 'usage_format.dart';
 
@@ -86,15 +88,37 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
                           itemCount: summaries.length,
                           itemBuilder: (context, index) {
                             final summary = summaries[index];
+                            final color = AccentPalette.forLabel(summary.employee.displayName);
+                            final name = summary.employee.displayName;
                             return Card(
                               margin: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
                               child: ListTile(
-                                title: Text(summary.employee.displayName),
+                                leading: CircleAvatar(
+                                  backgroundColor: color.withValues(alpha: 0.15),
+                                  foregroundColor: color,
+                                  child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?'),
+                                ),
+                                title: Text(name),
                                 isThreeLine: true,
-                                subtitle: Text(
-                                  '${summary.sessionCount} session${summary.sessionCount == 1 ? '' : 's'} • '
-                                  '${formatDuration(summary.totalDuration)} total\n'
-                                  '${summary.lastOpenedAt == null ? 'Never opened' : 'Last opened: ${formatDateTime(summary.lastOpenedAt!)}'}',
+                                subtitle: RichText(
+                                  text: TextSpan(
+                                    style: DefaultTextStyle.of(context).style.copyWith(fontSize: 13),
+                                    children: [
+                                      TextSpan(
+                                        text: '${summary.sessionCount} session${summary.sessionCount == 1 ? '' : 's'}',
+                                        style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                                      ),
+                                      const TextSpan(text: ' • '),
+                                      TextSpan(
+                                        text: '${formatDuration(summary.totalDuration)} total',
+                                        style: const TextStyle(color: AppTheme.success, fontWeight: FontWeight.w600),
+                                      ),
+                                      TextSpan(
+                                        text:
+                                            '\n${summary.lastOpenedAt == null ? 'Never opened' : 'Last opened: ${formatDateTime(summary.lastOpenedAt!)}'}',
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                                 onTap: () => context.push('/admin/dashboard/sessions', extra: summary.employee),

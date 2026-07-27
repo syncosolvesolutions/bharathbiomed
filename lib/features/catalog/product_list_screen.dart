@@ -41,6 +41,25 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultMessage)));
   }
 
+  Future<void> _logout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You can keep browsing the catalog offline after logging out — sync just needs signing in again.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Log out')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await ref.read(authControllerProvider.notifier).signOut();
+    if (!mounted) return;
+    context.go('/login');
+  }
+
   void _openSlideshowForSelection() {
     final selectedProducts = ref.read(selectionControllerProvider);
     if (selectedProducts.isEmpty) {
@@ -76,6 +95,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               icon: const Icon(Icons.lock_outline),
               tooltip: 'Change Password',
               onPressed: () => context.push('/account/change-password'),
+            ),
+          if (isSignedIn)
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Log out',
+              onPressed: _logout,
             ),
           IconButton(
             icon: _isSyncing

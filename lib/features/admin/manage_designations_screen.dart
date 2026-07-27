@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
 import '../../domain/models/designation.dart';
 import 'designation_controller.dart';
 
@@ -147,7 +148,13 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final designation = filtered[index];
+                      final color = AccentPalette.forLabel(designation.name);
                       return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: color.withValues(alpha: 0.15),
+                          foregroundColor: color,
+                          child: Icon(Icons.badge_outlined, color: color, size: 20),
+                        ),
                         title: Text(designation.name),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

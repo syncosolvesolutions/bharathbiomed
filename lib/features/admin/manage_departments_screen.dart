@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/user_facing_error.dart';
+import '../../core/theme/accent_palette.dart';
 import 'admin_catalog_controller.dart';
 
 class ManageDepartmentsScreen extends ConsumerStatefulWidget {
@@ -146,7 +147,13 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
                     itemCount: filtered.length,
                     itemBuilder: (context, index) {
                       final department = filtered[index];
+                      final color = AccentPalette.forLabel(department);
                       return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: color.withValues(alpha: 0.15),
+                          foregroundColor: color,
+                          child: Text(department.isNotEmpty ? department[0].toUpperCase() : '?'),
+                        ),
                         title: Text(department),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,

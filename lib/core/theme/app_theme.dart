@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppTheme {
   AppTheme._();
 
+  // Sampled from the app icon (assets/bnewlogo.jpeg — the blue half of the
+  // "B" mark) so the in-app theme reads as the same brand as the launcher
+  // icon, not an unrelated blue.
   static const Color primary = Color(0xFF3470B2);
 
   // Status colors used outside the Material ColorScheme (connectivity /
@@ -25,11 +29,23 @@ class AppTheme {
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        scrolledUnderElevation: 2,
-        backgroundColor: scheme.surface,
-        foregroundColor: scheme.onSurface,
-        surfaceTintColor: scheme.surfaceTint,
-        titleTextStyle: base.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+        scrolledUnderElevation: 4,
+        // Branded solid app bar (matches the icon's blue) instead of
+        // blending into the scaffold background — every screen with a
+        // default AppBar picks this up automatically.
+        backgroundColor: scheme.primary,
+        foregroundColor: scheme.onPrimary,
+        iconTheme: IconThemeData(color: scheme.onPrimary),
+        actionsIconTheme: IconThemeData(color: scheme.onPrimary),
+        surfaceTintColor: scheme.primary,
+        titleTextStyle: base.textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: scheme.onPrimary,
+        ),
+        // Light (white) status-bar icons/clock read correctly against the
+        // now-dark blue app bar — without this Android keeps them dark and
+        // they disappear.
+        systemOverlayStyle: SystemUiOverlayStyle.light,
       ),
       cardTheme: CardThemeData(
         elevation: 2,

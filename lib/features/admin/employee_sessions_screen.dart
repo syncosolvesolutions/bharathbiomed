@@ -31,7 +31,11 @@ class EmployeeSessionsScreen extends ConsumerWidget {
             itemBuilder: (context, index) {
               final session = sessions[index];
               return ListTile(
-                leading: const Icon(Icons.schedule),
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0x1A3470B2),
+                  foregroundColor: Color(0xFF3470B2),
+                  child: Icon(Icons.schedule, size: 20),
+                ),
                 title: Text(formatDateTime(session.openedAt)),
                 subtitle: Text(
                   '${session.duration == null ? 'Duration unavailable' : formatDuration(session.duration!)} • '
