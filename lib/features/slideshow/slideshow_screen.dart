@@ -56,7 +56,10 @@ class SlideshowScreen extends StatelessWidget {
               ),
               child: IconButton(
                 icon: const Icon(Icons.close, size: 26, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
+                onPressed: () {
+                  debugPrint('SlideshowScreen: close button pressed');
+                  Navigator.of(context).pop();
+                },
               ),
             ),
           ),

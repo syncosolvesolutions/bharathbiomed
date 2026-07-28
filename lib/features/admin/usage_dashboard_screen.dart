@@ -24,6 +24,7 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
 
   @override
   void dispose() {
+    debugPrint('UsageDashboardScreen.dispose: disposing');
     _searchController.dispose();
     super.dispose();
   }
@@ -43,7 +44,10 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
               Text('Failed to load usage data: ${UserFacingError.describe(error)}'),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => ref.read(usageDashboardControllerProvider.notifier).refresh(),
+                onPressed: () {
+                  debugPrint('UsageDashboardScreen: retry button tapped');
+                  ref.read(usageDashboardControllerProvider.notifier).refresh();
+                },
                 child: const Text('Retry'),
               ),
             ],
@@ -67,13 +71,12 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
           return Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: TextField(
                   controller: _searchController,
                   decoration: const InputDecoration(
                     labelText: 'Search employees',
                     prefixIcon: Icon(Icons.search),
-                    border: OutlineInputBorder(),
                     isDense: true,
                   ),
                   onChanged: (_) => setState(() {}),
@@ -83,7 +86,10 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
                 child: summaries.isEmpty
                     ? const Center(child: Text('No employees match this search.'))
                     : RefreshIndicator(
-                        onRefresh: () => ref.read(usageDashboardControllerProvider.notifier).refresh(),
+                        onRefresh: () {
+                          debugPrint('UsageDashboardScreen: pull-to-refresh triggered');
+                          return ref.read(usageDashboardControllerProvider.notifier).refresh();
+                        },
                         child: ListView.builder(
                           itemCount: summaries.length,
                           itemBuilder: (context, index) {

@@ -11,17 +11,21 @@ class CrashReporter {
   static final DeviceInfoPlugin _deviceInfoPlugin = DeviceInfoPlugin();
 
   static Future<void> initialize() async {
+    debugPrint('CrashReporter.initialize: reading device info for platform=$defaultTargetPlatform');
     try {
       final deviceData = switch (defaultTargetPlatform) {
         TargetPlatform.android => _readAndroidBuildData(await _deviceInfoPlugin.androidInfo),
         TargetPlatform.iOS => _readIosDeviceInfo(await _deviceInfoPlugin.iosInfo),
         _ => <String, dynamic>{'error': 'Unsupported platform for device info'},
       };
+      debugPrint('CrashReporter.initialize: device info read successfully');
 
       final userId = '${deviceData['serialNumber'] ?? deviceData['identifierForVendor'] ?? 'unknown_device'}';
+      debugPrint('CrashReporter.initialize: setting Crashlytics user identifier and custom keys');
       await FirebaseCrashlytics.instance.setUserIdentifier(userId);
       await FirebaseCrashlytics.instance.setCustomKey('device_name', deviceData['name'] ?? 'Unknown');
       await FirebaseCrashlytics.instance.setCustomKey('model', deviceData['model'] ?? 'Unknown');
+      debugPrint('CrashReporter.initialize: Crashlytics user identifier and custom keys set');
     } on PlatformException catch (e, st) {
       debugPrint('CrashReporter: failed to read device info: $e');
       await FirebaseCrashlytics.instance.recordError(e, st, fatal: false);

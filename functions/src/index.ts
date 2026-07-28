@@ -4,6 +4,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getMessaging} from "firebase-admin/messaging";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import * as logger from "firebase-functions/logger";
 
 import {requireAdmin, usernameToEmail} from "./adminAccess";
 
@@ -11,6 +12,9 @@ initializeApp();
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Date-only, no time/timezone component — see Employee.dateOfBirth on the
+// Flutter side for why this is stored as a plain string.
+const DATE_OF_BIRTH_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 interface CreateEmployeeRequest {
   firstName: string;
@@ -22,23 +26,43 @@ interface CreateEmployeeRequest {
   mobileNumber?: string;
   photoUrl?: string;
   email: string;
+  dateOfBirth?: string;
 }
 
-/** Turns an Auth-SDK error into the right HttpsError, or rethrows it unchanged. */
-function rethrowAuthError(error: unknown): never {
+/**
+ * Turns an Auth-SDK error into the right HttpsError. Always logs the
+ * original error first — onCall sanitizes anything that isn't already an
+ * HttpsError down to a bare "internal" error with no message before it
+ * reaches the client, so without this log line the only trace of *why* an
+ * Auth operation failed would be lost entirely.
+ */
+function rethrowAuthError(error: unknown, context: string): never {
   const code = (error as {code?: string}).code;
+  logger.error(`${context}: Auth SDK error`, {code, error: String(error)});
+
   if (code === "auth/email-already-exists") {
     throw new HttpsError("already-exists", "That email or username is already taken.");
   }
   if (code === "auth/invalid-email") {
     throw new HttpsError("invalid-argument", "That email address looks invalid.");
   }
-  throw error;
+  if (code === "auth/invalid-password" || code === "auth/weak-password") {
+    throw new HttpsError("invalid-argument", "Password must be at least 6 characters.");
+  }
+  if (code === "auth/too-many-requests" || code === "resource-exhausted") {
+    throw new HttpsError("resource-exhausted", "Too many attempts. Please wait a moment and try again.");
+  }
+  // Any other Auth SDK error: still surface *something* useful to the admin
+  // (an HttpsError's message reaches the client; a raw error's does not).
+  throw new HttpsError("internal", `Failed to save this account (${code ?? "unknown error"}). Please try again.`);
 }
 
 /** Loads Users/{uid} and throws unless it's a profile this system created (role === "mr"). */
 async function requireMrUserDoc(uid: string): Promise<DocumentSnapshot> {
+  logger.info("requireMrUserDoc: called", {uid});
+  logger.info("requireMrUserDoc: fetching Users doc", {uid});
   const userDoc = await getFirestore().collection("Users").doc(uid).get();
+  logger.info("requireMrUserDoc: fetched Users doc", {uid, exists: userDoc.exists});
   if (!userDoc.exists || userDoc.data()?.role !== "mr") {
     throw new HttpsError("not-found", "No Medical Representative account found for that uid.");
   }
@@ -47,7 +71,10 @@ async function requireMrUserDoc(uid: string): Promise<DocumentSnapshot> {
 
 /** Throws if `username` is already taken by a different uid than `excludeUid`. */
 async function requireUsernameAvailable(username: string, excludeUid?: string): Promise<void> {
+  logger.info("requireUsernameAvailable: called", {username, excludeUid: excludeUid ?? null});
+  logger.info("requireUsernameAvailable: querying Users by username", {username});
   const clash = await getFirestore().collection("Users").where("username", "==", username).limit(1).get();
+  logger.info("requireUsernameAvailable: queried Users by username", {username, clashFound: !clash.empty});
   if (!clash.empty && clash.docs[0].id !== excludeUid) {
     throw new HttpsError("already-exists", "That username is already taken.");
   }
@@ -69,6 +96,12 @@ async function requireUsernameAvailable(username: string, excludeUid?: string): 
  * and Firebase's native "forgot password" email works for them.
  */
 export const createEmployee = onCall(async (request) => {
+  logger.info("createEmployee: called", {
+    username: (request.data as Partial<CreateEmployeeRequest>)?.username,
+    email: (request.data as Partial<CreateEmployeeRequest>)?.email,
+    designation: (request.data as Partial<CreateEmployeeRequest>)?.designation,
+    areaName: (request.data as Partial<CreateEmployeeRequest>)?.areaName,
+  });
   const adminUid = requireAdmin(request);
 
   const data = request.data as Partial<CreateEmployeeRequest>;
@@ -81,6 +114,7 @@ export const createEmployee = onCall(async (request) => {
   const mobileNumber = data.mobileNumber?.trim() || null;
   const photoUrl = data.photoUrl?.trim() || null;
   const email = data.email?.trim().toLowerCase() || "";
+  const dateOfBirth = data.dateOfBirth?.trim() || null;
 
   if (!firstName || !lastName) {
     throw new HttpsError("invalid-argument", "First and last name are required.");
@@ -103,6 +137,9 @@ export const createEmployee = onCall(async (request) => {
   if (!EMAIL_PATTERN.test(email)) {
     throw new HttpsError("invalid-argument", "That email address looks invalid.");
   }
+  if (dateOfBirth && !DATE_OF_BIRTH_PATTERN.test(dateOfBirth)) {
+    throw new HttpsError("invalid-argument", "Date of birth must be in YYYY-MM-DD format.");
+  }
 
   await requireUsernameAvailable(username);
 
@@ -112,6 +149,7 @@ export const createEmployee = onCall(async (request) => {
   const auth = getAuth();
   let uid: string;
   try {
+    logger.info("createEmployee: creating Auth user", {username, email});
     const userRecord = await auth.createUser({
       email: loginEmail,
       password,
@@ -119,8 +157,9 @@ export const createEmployee = onCall(async (request) => {
       emailVerified: true,
     });
     uid = userRecord.uid;
+    logger.info("createEmployee: created Auth user", {uid, username});
   } catch (error) {
-    rethrowAuthError(error);
+    rethrowAuthError(error, "createEmployee: auth.createUser");
   }
 
   // From here on, the Auth user exists. If either of the following steps
@@ -128,8 +167,11 @@ export const createEmployee = onCall(async (request) => {
   // Firestore profile (which would be invisible in "Manage Employees" but
   // still occupy the email/username and count against Auth quota).
   try {
+    logger.info("createEmployee: setting custom user claims", {uid});
     await auth.setCustomUserClaims(uid, {role: "mr"});
+    logger.info("createEmployee: set custom user claims", {uid});
 
+    logger.info("createEmployee: writing Users profile doc", {uid, username});
     await getFirestore().collection("Users").doc(uid).set({
       username,
       firstName,
@@ -140,16 +182,27 @@ export const createEmployee = onCall(async (request) => {
       mobileNumber,
       photoUrl,
       email,
+      dateOfBirth,
       role: "mr",
       disabled: false,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: adminUid,
     });
+    logger.info("createEmployee: wrote Users profile doc", {uid, username});
   } catch (error) {
-    await auth.deleteUser(uid).catch(() => undefined);
+    logger.error("createEmployee: failed after Auth user was created, rolling back", {
+      uid,
+      username,
+      error: String(error),
+    });
+    logger.info("createEmployee: rolling back by deleting Auth user", {uid});
+    await auth.deleteUser(uid).catch((cleanupError) =>
+      logger.error("createEmployee: rollback (auth.deleteUser) also failed", {uid, error: String(cleanupError)})
+    );
     throw new HttpsError("internal", "Failed to finish setting up the new employee. Please try again.");
   }
 
+  logger.info("createEmployee: succeeded", {uid, username});
   return {uid, username, loginEmail};
 });
 
@@ -164,6 +217,7 @@ interface DeleteEmployeeRequest {
  * used to delete an arbitrary Firebase Auth user.
  */
 export const deleteEmployee = onCall(async (request) => {
+  logger.info("deleteEmployee: called", {uid: (request.data as Partial<DeleteEmployeeRequest>)?.uid});
   requireAdmin(request);
 
   const uid = (request.data as Partial<DeleteEmployeeRequest>).uid;
@@ -172,9 +226,16 @@ export const deleteEmployee = onCall(async (request) => {
   }
 
   const userDoc = await requireMrUserDoc(uid);
-  await getAuth().deleteUser(uid);
-  await userDoc.ref.delete();
 
+  logger.info("deleteEmployee: deleting Auth user", {uid});
+  await getAuth().deleteUser(uid);
+  logger.info("deleteEmployee: deleted Auth user", {uid});
+
+  logger.info("deleteEmployee: deleting Users profile doc", {uid});
+  await userDoc.ref.delete();
+  logger.info("deleteEmployee: deleted Users profile doc", {uid});
+
+  logger.info("deleteEmployee: succeeded", {uid});
   return {success: true};
 });
 
@@ -188,6 +249,7 @@ interface UpdateEmployeeRequest {
   mobileNumber?: string;
   photoUrl?: string;
   email: string;
+  dateOfBirth?: string;
 }
 
 /**
@@ -198,6 +260,11 @@ interface UpdateEmployeeRequest {
  * ("pick another one") rather than an auto-appended suffix.
  */
 export const updateEmployee = onCall(async (request) => {
+  logger.info("updateEmployee: called", {
+    uid: (request.data as Partial<UpdateEmployeeRequest>)?.uid,
+    username: (request.data as Partial<UpdateEmployeeRequest>)?.username,
+    email: (request.data as Partial<UpdateEmployeeRequest>)?.email,
+  });
   requireAdmin(request);
 
   const data = request.data as Partial<UpdateEmployeeRequest>;
@@ -210,6 +277,7 @@ export const updateEmployee = onCall(async (request) => {
   const mobileNumber = data.mobileNumber?.trim() || null;
   const photoUrl = data.photoUrl?.trim() || null;
   const email = data.email?.trim().toLowerCase() || "";
+  const dateOfBirth = data.dateOfBirth?.trim() || null;
 
   if (!uid) {
     throw new HttpsError("invalid-argument", "uid is required.");
@@ -232,6 +300,9 @@ export const updateEmployee = onCall(async (request) => {
   if (!EMAIL_PATTERN.test(email)) {
     throw new HttpsError("invalid-argument", "That email address looks invalid.");
   }
+  if (dateOfBirth && !DATE_OF_BIRTH_PATTERN.test(dateOfBirth)) {
+    throw new HttpsError("invalid-argument", "Date of birth must be in YYYY-MM-DD format.");
+  }
 
   const userDoc = await requireMrUserDoc(uid);
 
@@ -247,12 +318,15 @@ export const updateEmployee = onCall(async (request) => {
   const priorDisplayName = userDoc.data()?.displayName as string | undefined;
 
   try {
+    logger.info("updateEmployee: updating Auth user", {uid, email: loginEmail});
     await getAuth().updateUser(uid, {email: loginEmail, displayName});
+    logger.info("updateEmployee: updated Auth user", {uid});
   } catch (error) {
-    rethrowAuthError(error);
+    rethrowAuthError(error, "updateEmployee: auth.updateUser");
   }
 
   try {
+    logger.info("updateEmployee: updating Users profile doc", {uid, username});
     await userDoc.ref.update({
       username,
       firstName,
@@ -263,16 +337,26 @@ export const updateEmployee = onCall(async (request) => {
       mobileNumber,
       photoUrl,
       email,
+      dateOfBirth,
     });
+    logger.info("updateEmployee: updated Users profile doc", {uid, username});
   } catch (error) {
+    logger.error("updateEmployee: Firestore write failed after Auth was already updated, rolling back", {
+      uid,
+      error: String(error),
+    });
     // Firestore write failed after Auth was already updated — roll the Auth
     // record back so the two stores don't disagree on this employee's login.
+    logger.info("updateEmployee: rolling back Auth user update", {uid});
     await getAuth()
       .updateUser(uid, {email: priorEmail, displayName: priorDisplayName})
-      .catch(() => undefined);
+      .catch((cleanupError) =>
+        logger.error("updateEmployee: rollback (auth.updateUser) also failed", {uid, error: String(cleanupError)})
+      );
     throw new HttpsError("internal", "Failed to save the employee profile. Please try again.");
   }
 
+  logger.info("updateEmployee: succeeded", {uid, username});
   return {success: true, loginEmail};
 });
 
@@ -292,6 +376,7 @@ interface ResetEmployeePasswordRequest {
  * too, as a fallback the admin can reach for directly.)
  */
 export const resetEmployeePassword = onCall(async (request) => {
+  logger.info("resetEmployeePassword: called", {uid: (request.data as Partial<ResetEmployeePasswordRequest>)?.uid});
   requireAdmin(request);
 
   const data = request.data as Partial<ResetEmployeePasswordRequest>;
@@ -306,8 +391,12 @@ export const resetEmployeePassword = onCall(async (request) => {
   }
 
   await requireMrUserDoc(uid);
-  await getAuth().updateUser(uid, {password: newPassword});
 
+  logger.info("resetEmployeePassword: updating Auth user password", {uid});
+  await getAuth().updateUser(uid, {password: newPassword});
+  logger.info("resetEmployeePassword: updated Auth user password", {uid});
+
+  logger.info("resetEmployeePassword: succeeded", {uid});
   return {success: true};
 });
 
@@ -324,6 +413,10 @@ interface SetEmployeeStatusRequest {
  * unlike deleteEmployee, this is reversible.
  */
 export const setEmployeeStatus = onCall(async (request) => {
+  logger.info("setEmployeeStatus: called", {
+    uid: (request.data as Partial<SetEmployeeStatusRequest>)?.uid,
+    disabled: (request.data as Partial<SetEmployeeStatusRequest>)?.disabled,
+  });
   requireAdmin(request);
 
   const data = request.data as Partial<SetEmployeeStatusRequest>;
@@ -338,20 +431,125 @@ export const setEmployeeStatus = onCall(async (request) => {
   }
 
   const userDoc = await requireMrUserDoc(uid);
+
+  logger.info("setEmployeeStatus: updating Auth user disabled flag", {uid, disabled});
   await getAuth().updateUser(uid, {disabled});
+  logger.info("setEmployeeStatus: updated Auth user disabled flag", {uid, disabled});
 
   try {
+    logger.info("setEmployeeStatus: updating Users profile doc", {uid, disabled});
     await userDoc.ref.update({disabled});
+    logger.info("setEmployeeStatus: updated Users profile doc", {uid, disabled});
   } catch (error) {
+    logger.error("setEmployeeStatus: Firestore write failed after Auth was already flipped, rolling back", {
+      uid,
+      disabled,
+      error: String(error),
+    });
     // Firestore write failed after Auth was already flipped — roll the Auth
     // record back so a suspend/reactivate doesn't half-apply.
+    logger.info("setEmployeeStatus: rolling back Auth user disabled flag", {uid, disabled: !disabled});
     await getAuth()
       .updateUser(uid, {disabled: !disabled})
-      .catch(() => undefined);
+      .catch((cleanupError) =>
+        logger.error("setEmployeeStatus: rollback (auth.updateUser) also failed", {uid, error: String(cleanupError)})
+      );
     throw new HttpsError("internal", "Failed to update this employee's status. Please try again.");
   }
 
+  logger.info("setEmployeeStatus: succeeded", {uid, disabled});
   return {success: true};
+});
+
+interface UpdateMyEmployeeProfileRequest {
+  firstName: string;
+  lastName: string;
+  mobileNumber?: string;
+  photoUrl?: string;
+  dateOfBirth?: string;
+}
+
+/**
+ * Self-service: lets a signed-in Medical Representative edit their own
+ * profile — but only the fields listed in [UpdateMyEmployeeProfileRequest].
+ * Username, email, designation, areaName, disabled and role are never
+ * touched here, matching the Profile screen's "can't change username and
+ * email" requirement. Scoped to `request.auth.uid` (never a
+ * client-supplied uid), and [requireMrUserDoc] throws "not-found" for any
+ * caller without a `role: mr` profile — which includes the admin, who has
+ * no `Users` doc at all and edits their own profile directly in
+ * `AdminProfile/{uid}` instead (see firestore.rules).
+ */
+export const updateMyEmployeeProfile = onCall(async (request) => {
+  logger.info("updateMyEmployeeProfile: called", {uid: request.auth?.uid});
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in to edit your profile.");
+  }
+  const uid = request.auth.uid;
+
+  const data = request.data as Partial<UpdateMyEmployeeProfileRequest>;
+  const firstName = data.firstName?.trim() ?? "";
+  const lastName = data.lastName?.trim() ?? "";
+  const mobileNumber = data.mobileNumber?.trim() || null;
+  const photoUrl = data.photoUrl?.trim() || null;
+  const dateOfBirth = data.dateOfBirth?.trim() || null;
+
+  if (!firstName || !lastName) {
+    throw new HttpsError("invalid-argument", "First and last name are required.");
+  }
+  if (dateOfBirth && !DATE_OF_BIRTH_PATTERN.test(dateOfBirth)) {
+    throw new HttpsError("invalid-argument", "Date of birth must be in YYYY-MM-DD format.");
+  }
+
+  const userDoc = await requireMrUserDoc(uid);
+  const displayName = `${firstName} ${lastName}`;
+
+  logger.info("updateMyEmployeeProfile: updating Users profile doc", {uid});
+  await userDoc.ref.update({firstName, lastName, displayName, mobileNumber, photoUrl, dateOfBirth});
+  logger.info("updateMyEmployeeProfile: updated Users profile doc", {uid});
+
+  return {success: true};
+});
+
+/**
+ * Every notification this collection ever holds is created here, whenever
+ * an MR's date of birth is set or changed (whether by the admin via
+ * createEmployee/updateEmployee, or by the MR themselves via
+ * updateMyEmployeeProfile above) — see AdminNotifications in
+ * firestore.rules. Fires on the change itself, not annually.
+ */
+const ADMIN_NOTIFICATIONS_TOPIC = "admin-notifications";
+
+export const onEmployeeDobChanged = onDocumentWritten("Users/{uid}", async (event) => {
+  const before = event.data?.before?.data();
+  const after = event.data?.after?.data();
+  if (!after) return; // Employee deleted — nothing to notify about.
+
+  const beforeDob = (before?.dateOfBirth as string | undefined) ?? null;
+  const afterDob = (after.dateOfBirth as string | undefined) ?? null;
+  if (beforeDob === afterDob || !afterDob) return;
+
+  const uid = event.params.uid;
+  const employeeName = (after.displayName as string | undefined) || "An employee";
+  const message = `${employeeName} updated their date of birth to ${afterDob}.`;
+  logger.info("onEmployeeDobChanged: date of birth changed, notifying admin", {uid, afterDob});
+
+  await getFirestore().collection("AdminNotifications").add({
+    employeeUid: uid,
+    employeeName,
+    message,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await getMessaging().send({
+    topic: ADMIN_NOTIFICATIONS_TOPIC,
+    notification: {title: "Date of birth updated", body: message},
+    data: {type: "admin_notification", employeeUid: uid},
+    android: {priority: "high", notification: {channelId: "admin_notifications"}},
+    apns: {headers: {"apns-priority": "10"}, payload: {aps: {contentAvailable: true, sound: "default"}}},
+  });
+  logger.info("onEmployeeDobChanged: finished", {uid});
 });
 
 /** Every device subscribes to this topic — see catalogUpdatesTopic in lib/core/notifications/push_notification_service.dart. */
@@ -370,8 +568,10 @@ const CATALOG_UPDATES_TOPIC = "catalog-updates";
 const NOTIFY_DEBOUNCE_MS = 15_000;
 
 async function notifyCatalogUpdated(): Promise<void> {
+  logger.info("notifyCatalogUpdated: called");
   const debounceRef = getFirestore().collection("CatalogMeta").doc("pushState");
 
+  logger.info("notifyCatalogUpdated: running debounce transaction");
   const shouldSend = await getFirestore().runTransaction(async (tx) => {
     const doc = await tx.get(debounceRef);
     const lastSentAt = doc.data()?.lastSentAt as Timestamp | undefined;
@@ -381,8 +581,10 @@ async function notifyCatalogUpdated(): Promise<void> {
     tx.set(debounceRef, {lastSentAt: FieldValue.serverTimestamp()});
     return true;
   });
+  logger.info("notifyCatalogUpdated: ran debounce transaction", {shouldSend});
   if (!shouldSend) return;
 
+  logger.info("notifyCatalogUpdated: sending FCM catalog-updates push", {topic: CATALOG_UPDATES_TOPIC});
   await getMessaging().send({
     topic: CATALOG_UPDATES_TOPIC,
     notification: {
@@ -399,6 +601,7 @@ async function notifyCatalogUpdated(): Promise<void> {
       payload: {aps: {contentAvailable: true, sound: "default"}},
     },
   });
+  logger.info("notifyCatalogUpdated: sent FCM catalog-updates push", {topic: CATALOG_UPDATES_TOPIC});
 }
 
 /**
@@ -407,11 +610,15 @@ async function notifyCatalogUpdated(): Promise<void> {
  * restrict writes to this collection to the admin account, so any write seen
  * here is a legitimate catalog change.
  */
-export const onProductsChanged = onDocumentWritten("Products/{productId}", async () => {
+export const onProductsChanged = onDocumentWritten("Products/{productId}", async (event) => {
+  logger.info("onProductsChanged: called", {productId: event.params.productId});
   await notifyCatalogUpdated();
+  logger.info("onProductsChanged: finished", {productId: event.params.productId});
 });
 
 /** Same as [onProductsChanged], for department create/rename/delete. */
-export const onDepartmentsChanged = onDocumentWritten("Department/{departmentDoc}", async () => {
+export const onDepartmentsChanged = onDocumentWritten("Department/{departmentDoc}", async (event) => {
+  logger.info("onDepartmentsChanged: called", {departmentDoc: event.params.departmentDoc});
   await notifyCatalogUpdated();
+  logger.info("onDepartmentsChanged: finished", {departmentDoc: event.params.departmentDoc});
 });

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/product.dart';
@@ -15,14 +16,18 @@ class ProductLocalDataSource {
   /// Cheap existence check — avoids loading every cached row (including
   /// each product's departments JSON) just to answer a yes/no question.
   Future<bool> hasProducts() async {
+    debugPrint('ProductLocalDataSource.hasProducts: checking local products count');
     final db = await _database.database;
     final result = Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM products'));
+    debugPrint('ProductLocalDataSource.hasProducts: count=${result ?? 0}');
     return (result ?? 0) > 0;
   }
 
   Future<List<Product>> getProducts() async {
+    debugPrint('ProductLocalDataSource.getProducts: querying local products table');
     final db = await _database.database;
     final rows = await db.query('products');
+    debugPrint('ProductLocalDataSource.getProducts: retrieved ${rows.length} rows');
     return rows
         .map((row) => Product(
               id: row['id'] as String,
@@ -35,8 +40,10 @@ class ProductLocalDataSource {
   }
 
   Future<List<String>> getDepartments() async {
+    debugPrint('ProductLocalDataSource.getDepartments: querying local departments table');
     final db = await _database.database;
     final rows = await db.query('departments', orderBy: 'position ASC');
+    debugPrint('ProductLocalDataSource.getDepartments: retrieved ${rows.length} rows');
     return rows.map((row) => row['name'] as String).toList();
   }
 
@@ -45,6 +52,8 @@ class ProductLocalDataSource {
     required List<Product> products,
     required List<String> departments,
   }) async {
+    debugPrint(
+        'ProductLocalDataSource.replaceAll: replacing local cache with ${products.length} products and ${departments.length} departments');
     final db = await _database.database;
     await db.transaction((txn) async {
       final batch = txn.batch();
@@ -72,5 +81,6 @@ class ProductLocalDataSource {
       }
       await batch.commit(noResult: true);
     });
+    debugPrint('ProductLocalDataSource.replaceAll: local cache replaced successfully');
   }
 }

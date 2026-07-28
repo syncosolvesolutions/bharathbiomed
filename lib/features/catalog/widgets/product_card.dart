@@ -45,7 +45,10 @@ class ProductCard extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 8.0),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => ref.read(selectionControllerProvider.notifier).toggle(product),
+        onTap: () {
+          debugPrint('ProductCard.onTap: toggling selection for product id=${product.id}');
+          ref.read(selectionControllerProvider.notifier).toggle(product);
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,

@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/app_theme.dart';
+import '../../domain/models/employee.dart';
 import '../admin/admin_access.dart';
 import '../auth/auth_controller.dart';
+import '../profile/birthday_celebration.dart';
+import '../profile/profile_controller.dart';
 import 'catalog_controller.dart';
 import 'selection_controller.dart';
 import 'widgets/category_section.dart';
@@ -24,13 +28,18 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   bool _isSyncing = false;
 
   Future<void> _syncCatalog() async {
+    debugPrint('ProductListScreen._syncCatalog: sync button pressed');
     setState(() => _isSyncing = true);
 
     String resultMessage;
     try {
+      debugPrint('ProductListScreen._syncCatalog: calling catalogController.sync');
       await ref.read(catalogControllerProvider.notifier).sync();
+      debugPrint('ProductListScreen._syncCatalog: sync succeeded');
       resultMessage = 'Data synced successfully.';
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('ProductListScreen._syncCatalog: sync failed error=$error');
+      AppLogger.error('ProductList', 'catalog sync failed', error: error, stackTrace: stackTrace);
       // Deliberately don't rethrow: catalogControllerProvider keeps showing
       // whatever was last synced, so the user isn't left with a blank screen.
       resultMessage = 'Sync failed: ${UserFacingError.describe(error)}';
@@ -42,6 +51,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   }
 
   Future<void> _logout() async {
+    debugPrint('ProductListScreen._logout: logout requested');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -55,12 +65,15 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    debugPrint('ProductListScreen._logout: calling authController.signOut');
     await ref.read(authControllerProvider.notifier).signOut();
+    debugPrint('ProductListScreen._logout: signOut succeeded');
     if (!mounted) return;
     context.go('/login');
   }
 
   void _openSlideshowForSelection() {
+    debugPrint('ProductListScreen._openSlideshowForSelection: play button pressed');
     final selectedProducts = ref.read(selectionControllerProvider);
     if (selectedProducts.isEmpty) {
       QuickAlert.show(
@@ -79,16 +92,37 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     final catalog = ref.watch(catalogControllerProvider);
     final isAdmin = ref.watch(isAdminProvider);
     final isSignedIn = ref.watch(authControllerProvider).value != null;
+    final Employee? myProfile = isAdmin ? null : ref.watch(myEmployeeProfileProvider).value;
+
+    // Idempotent: maybeShowBirthdayCelebration only actually shows once per
+    // uid/year (tracked in shared_preferences), so it's safe to re-run every
+    // time this stream emits a new snapshot.
+    ref.listen<AsyncValue<Employee?>>(myEmployeeProfileProvider, (previous, next) {
+      final employee = next.value;
+      if (employee != null) maybeShowBirthdayCelebration(context, employee);
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bharath Biomed Pharma'),
         actions: [
+          if (myProfile?.isBirthdayToday ?? false)
+            IconButton(
+              icon: const Text('🎂', style: TextStyle(fontSize: 20)),
+              tooltip: 'Happy Birthday!',
+              onPressed: () => showBirthdayCelebration(context, myProfile!),
+            ),
           if (isAdmin)
             IconButton(
               icon: const Icon(Icons.admin_panel_settings_outlined),
               tooltip: 'Admin',
               onPressed: () => context.push('/admin'),
+            ),
+          if (isSignedIn)
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'Profile',
+              onPressed: () => context.push('/account/profile'),
             ),
           if (isSignedIn)
             IconButton(
@@ -130,7 +164,10 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
-                  onPressed: () => ref.invalidate(catalogControllerProvider),
+                  onPressed: () {
+                    debugPrint('ProductListScreen: Retry button pressed, invalidating catalogControllerProvider');
+                    ref.invalidate(catalogControllerProvider);
+                  },
                   child: const Text('Retry'),
                 ),
               ],

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/models/employee.dart';
 import '../remote/employee_remote_data_source.dart';
 
@@ -8,7 +10,10 @@ class EmployeeRepository {
 
   final EmployeeRemoteDataSource _remote;
 
-  Future<List<Employee>> fetchAll() => _remote.fetchAll();
+  Future<List<Employee>> fetchAll() {
+    debugPrint('EmployeeRepository.fetchAll: fetching employees');
+    return _remote.fetchAll();
+  }
 
   Future<EmployeeCredentials> create({
     required String firstName,
@@ -20,7 +25,9 @@ class EmployeeRepository {
     required String email,
     String? mobileNumber,
     String? photoUrl,
+    String? dateOfBirth,
   }) {
+    debugPrint('EmployeeRepository.create: creating employee username=$username email=$email');
     return _remote.create(
       firstName: firstName,
       lastName: lastName,
@@ -31,6 +38,7 @@ class EmployeeRepository {
       email: email,
       mobileNumber: mobileNumber,
       photoUrl: photoUrl,
+      dateOfBirth: dateOfBirth,
     );
   }
 
@@ -44,7 +52,9 @@ class EmployeeRepository {
     required String email,
     String? mobileNumber,
     String? photoUrl,
+    String? dateOfBirth,
   }) {
+    debugPrint('EmployeeRepository.update: updating employee uid=$uid username=$username');
     return _remote.update(
       uid: uid,
       firstName: firstName,
@@ -55,12 +65,45 @@ class EmployeeRepository {
       email: email,
       mobileNumber: mobileNumber,
       photoUrl: photoUrl,
+      dateOfBirth: dateOfBirth,
     );
   }
 
-  Future<void> delete(String uid) => _remote.delete(uid);
+  Future<void> delete(String uid) {
+    debugPrint('EmployeeRepository.delete: deleting employee uid=$uid');
+    return _remote.delete(uid);
+  }
 
-  Future<void> resetPassword(String uid, String newPassword) => _remote.resetPassword(uid, newPassword);
+  Future<void> resetPassword(String uid, String newPassword) {
+    debugPrint('EmployeeRepository.resetPassword: resetting password uid=$uid');
+    return _remote.resetPassword(uid, newPassword);
+  }
 
-  Future<void> setStatus(String uid, {required bool disabled}) => _remote.setStatus(uid, disabled: disabled);
+  Future<void> setStatus(String uid, {required bool disabled}) {
+    debugPrint('EmployeeRepository.setStatus: uid=$uid disabled=$disabled');
+    return _remote.setStatus(uid, disabled: disabled);
+  }
+
+  /// Streams the signed-in MR's own profile for the Profile screen.
+  Stream<Employee?> watchMine(String uid) {
+    debugPrint('EmployeeRepository.watchMine: uid=$uid');
+    return _remote.watchMine(uid);
+  }
+
+  Future<void> updateMyProfile({
+    required String firstName,
+    required String lastName,
+    String? mobileNumber,
+    String? photoUrl,
+    String? dateOfBirth,
+  }) {
+    debugPrint('EmployeeRepository.updateMyProfile: updating own profile');
+    return _remote.updateMyProfile(
+      firstName: firstName,
+      lastName: lastName,
+      mobileNumber: mobileNumber,
+      photoUrl: photoUrl,
+      dateOfBirth: dateOfBirth,
+    );
+  }
 }

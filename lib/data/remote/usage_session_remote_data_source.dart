@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../domain/models/usage_session.dart';
 
@@ -13,6 +14,7 @@ class UsageSessionRemoteDataSource {
   final FirebaseFirestore _firestore;
 
   Future<void> upload(List<UsageSession> sessions) async {
+    debugPrint('UsageSessionRemoteDataSource.upload: uploading ${sessions.length} sessions');
     if (sessions.isEmpty) return;
 
     // Firestore caps a single batch at 500 writes; chunk so a device that's
@@ -35,14 +37,18 @@ class UsageSessionRemoteDataSource {
         });
       }
       await batch.commit();
+      debugPrint('UsageSessionRemoteDataSource.upload: committed batch of ${sessions.skip(i).take(chunkSize).length} sessions');
     }
+    debugPrint('UsageSessionRemoteDataSource.upload: upload complete for ${sessions.length} sessions');
   }
 
   /// Most recent 1000 sessions across all MRs — plenty for the dashboard's
   /// per-employee aggregates without an unbounded read as the log grows.
   Future<List<UsageSession>> fetchRecent() async {
+    debugPrint('UsageSessionRemoteDataSource.fetchRecent: fetching up to 1000 recent UsageSessions');
     final snapshot =
         await _firestore.collection('UsageSessions').orderBy('openedAt', descending: true).limit(1000).get();
+    debugPrint('UsageSessionRemoteDataSource.fetchRecent: fetched ${snapshot.docs.length} sessions');
     return snapshot.docs.map((doc) {
       final data = doc.data();
       final openedAt = data['openedAt'] as Timestamp?;

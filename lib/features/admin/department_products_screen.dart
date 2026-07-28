@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
 import '../../domain/models/product.dart';
@@ -25,14 +26,19 @@ class _DepartmentProductsScreenState extends ConsumerState<DepartmentProductsScr
 
   @override
   void dispose() {
+    debugPrint('DepartmentProductsScreen.dispose: disposing');
     _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _deleteProduct(BuildContext context, WidgetRef ref, Product product) async {
+    debugPrint('DepartmentProductsScreen._deleteProduct: deleting product id=${product.id}');
     try {
       await ref.read(adminCatalogControllerProvider.notifier).deleteProduct(product.id);
-    } catch (error) {
+      debugPrint('DepartmentProductsScreen._deleteProduct: deleted product id=${product.id}');
+    } catch (error, stackTrace) {
+      debugPrint('DepartmentProductsScreen._deleteProduct: delete failed error=$error');
+      AppLogger.error('DepartmentProducts', 'deleteProduct failed', error: error, stackTrace: stackTrace);
       if (!context.mounted) return;
       QuickAlert.show(
         context: context,

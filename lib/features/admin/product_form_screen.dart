@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../domain/models/product.dart';
 import 'admin_catalog_controller.dart';
@@ -33,12 +34,14 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   @override
   void dispose() {
+    debugPrint('ProductFormScreen.dispose: disposing');
     _nameController.dispose();
     _infoController.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    debugPrint('ProductFormScreen._save: save requested isEditing=$_isEditing');
     if (!_formKey.currentState!.validate()) return;
     if (_imageUrl == null || _imageUrl!.isEmpty) {
       QuickAlert.show(
@@ -56,6 +59,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     try {
       final controller = ref.read(adminCatalogControllerProvider.notifier);
       if (_isEditing) {
+        debugPrint('ProductFormScreen._save: calling updateProduct id=${widget.product!.id}');
         await controller.updateProduct(Product(
           id: widget.product!.id,
           name: _nameController.text.trim(),
@@ -63,13 +67,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           departments: validDepartments,
           imageUrl: _imageUrl!,
         ));
+        debugPrint('ProductFormScreen._save: updateProduct succeeded id=${widget.product!.id}');
       } else {
+        debugPrint('ProductFormScreen._save: calling createProduct name=${_nameController.text.trim()}');
         await controller.createProduct(
           name: _nameController.text.trim(),
           info: _infoController.text.trim(),
           departments: validDepartments,
           imageUrl: _imageUrl!,
         );
+        debugPrint('ProductFormScreen._save: createProduct succeeded name=${_nameController.text.trim()}');
       }
       if (!mounted) return;
       await QuickAlert.show(
@@ -81,7 +88,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('ProductFormScreen._save: save failed error=$error');
+      AppLogger.error('ProductForm', _isEditing ? 'updateProduct failed' : 'createProduct failed',
+          error: error, stackTrace: stackTrace);
       if (!mounted) return;
       QuickAlert.show(
         context: context,

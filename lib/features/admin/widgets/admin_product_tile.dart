@@ -18,6 +18,7 @@ class AdminProductTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   Future<void> _confirmDelete(BuildContext context) async {
+    debugPrint('AdminProductTile._confirmDelete: delete requested id=${product.id}');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -29,7 +30,10 @@ class AdminProductTile extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) onDelete();
+    if (confirmed == true) {
+      debugPrint('AdminProductTile._confirmDelete: confirmed, calling onDelete id=${product.id}');
+      onDelete();
+    }
   }
 
   @override

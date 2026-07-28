@@ -27,6 +27,7 @@ class EmployeeSessionsScreen extends ConsumerWidget {
             return const Center(child: Text('No recorded sessions yet.'));
           }
           return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 16.0),
             itemCount: sessions.length,
             itemBuilder: (context, index) {
               final session = sessions[index];

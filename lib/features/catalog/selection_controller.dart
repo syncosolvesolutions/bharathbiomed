@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/product.dart';
@@ -14,6 +15,7 @@ class SelectionController extends Notifier<List<Product>> {
   bool isSelected(Product product) => state.contains(product);
 
   void toggle(Product product) {
+    debugPrint('SelectionController.toggle: toggling product id=${product.id}');
     if (state.contains(product)) {
       state = state.where((p) => p != product).toList();
     } else {
@@ -21,5 +23,8 @@ class SelectionController extends Notifier<List<Product>> {
     }
   }
 
-  void clear() => state = const [];
+  void clear() {
+    debugPrint('SelectionController.clear: clearing selection');
+    state = const [];
+  }
 }

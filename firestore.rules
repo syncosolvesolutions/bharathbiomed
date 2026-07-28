@@ -39,13 +39,35 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Medical Representative profiles. Only the admin may read the list
-    // (to show it in "Manage Employees"). Nobody writes here directly —
-    // creation/deletion goes through the createEmployee/deleteEmployee
-    // Cloud Functions, which use the Admin SDK and bypass these rules.
+    // Medical Representative profiles. The admin may read the whole list
+    // (to show it in "Manage Employees"); an MR may read their own doc only
+    // (the Profile screen). Nobody writes here directly — creation, edits
+    // (admin or self-service), deletion, etc. all go through Cloud
+    // Functions (createEmployee/updateEmployee/deleteEmployee/
+    // updateMyEmployeeProfile/...), which use the Admin SDK and bypass
+    // these rules.
     match /Users/{uid} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
       allow write: if false;
+    }
+
+    // The admin's own profile (name/photo/mobile/DOB) — there's no `Users`
+    // doc for the admin (they're just an allowlisted email, see isAdmin()
+    // above), so this is its own doc the admin edits directly. Safe as a
+    // direct client write since it's the admin's own low-sensitivity data
+    // and isAdmin() + the uid match already fully trust this caller.
+    match /AdminProfile/{uid} {
+      allow read, write: if isAdmin() && request.auth.uid == uid;
+    }
+
+    // In-app notifications for the admin (currently only ever "an MR's date
+    // of birth changed" — see the onEmployeeDobChanged trigger in
+    // functions/src/index.ts). Only that trigger's Admin SDK write ever
+    // creates one (which bypasses rules), so client `create`/`delete` are
+    // both denied; the admin can still mark one read via `update`.
+    match /AdminNotifications/{notificationId} {
+      allow read, update: if isAdmin();
+      allow create, delete: if false;
     }
 
     // MR app-usage sessions (open/close timestamps, duration, location at

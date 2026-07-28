@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Emits the current connectivity state immediately, then again whenever it
@@ -6,7 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// this (see [features/catalog/catalog_controller.dart] for why: catalog
 /// data always comes from the local cache, network is only used on demand).
 final connectivityProvider = StreamProvider<List<ConnectivityResult>>((ref) async* {
-  yield await Connectivity().checkConnectivity();
+  debugPrint('connectivityProvider: checking current connectivity');
+  final initial = await Connectivity().checkConnectivity();
+  debugPrint('connectivityProvider: initial connectivity=$initial');
+  yield initial;
+  debugPrint('connectivityProvider: subscribing to connectivity change stream');
   yield* Connectivity().onConnectivityChanged;
 });
 

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
+import '../../core/utils/credential_share.dart';
+import '../../core/utils/date_of_birth.dart';
 import '../../core/utils/validators.dart';
 import '../../data/repositories/employee_repository.dart';
 import '../../domain/models/employee.dart';
 import 'designation_controller.dart';
 import 'employee_controller.dart';
+import 'widgets/credentials_dialog.dart';
 import 'widgets/photo_picker_field.dart';
 
 const _defaultPassword = 'Bharathbio@2026';
@@ -41,6 +45,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
 
   late String? _designation = widget.employee?.designation;
   late String? _photoUrl = widget.employee?.photoUrl;
+  late String? _dateOfBirth = widget.employee?.dateOfBirth;
   bool _saving = false;
 
   /// Once the admin has typed into the username field themselves, name
@@ -53,6 +58,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('EmployeeFormScreen.initState: isEditing=$_isEditing');
     if (!_isEditing) {
       _firstNameController.addListener(_autofillUsername);
       _lastNameController.addListener(_autofillUsername);
@@ -60,6 +66,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
   }
 
   void _autofillUsername() {
+    debugPrint('EmployeeFormScreen._autofillUsername: autofilling username');
     if (_usernameManuallyEdited) return;
     String slug(String value) => value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
     final first = slug(_firstNameController.text);
@@ -72,6 +79,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
 
   @override
   void dispose() {
+    debugPrint('EmployeeFormScreen.dispose: disposing');
     _firstNameController.removeListener(_autofillUsername);
     _lastNameController.removeListener(_autofillUsername);
     _firstNameController.dispose();
@@ -84,7 +92,20 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
     super.dispose();
   }
 
+  Future<void> _pickDateOfBirth() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: dateFromIso(_dateOfBirth) ?? DateTime(now.year - 25, now.month, now.day),
+      firstDate: DateTime(now.year - 100),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() => _dateOfBirth = isoFromDate(picked));
+  }
+
   Future<void> _save() async {
+    debugPrint('EmployeeFormScreen._save: save requested isEditing=$_isEditing');
     if (!_formKey.currentState!.validate()) return;
     if (_designation == null) {
       QuickAlert.show(
@@ -102,6 +123,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
       final mobile = _mobileController.text.trim();
       final EmployeeCredentials credentials;
       if (_isEditing) {
+        debugPrint('EmployeeFormScreen._save: calling updateEmployee uid=${widget.employee!.uid}');
         credentials = await ref.read(employeeControllerProvider.notifier).updateEmployee(
               uid: widget.employee!.uid,
               firstName: _firstNameController.text.trim(),
@@ -112,8 +134,11 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
               email: email,
               mobileNumber: mobile.isEmpty ? null : mobile,
               photoUrl: _photoUrl,
+              dateOfBirth: _dateOfBirth,
             );
+        debugPrint('EmployeeFormScreen._save: updateEmployee succeeded uid=${widget.employee!.uid}');
       } else {
+        debugPrint('EmployeeFormScreen._save: calling createEmployee username=${_usernameController.text.trim()}');
         credentials = await ref.read(employeeControllerProvider.notifier).createEmployee(
               firstName: _firstNameController.text.trim(),
               lastName: _lastNameController.text.trim(),
@@ -124,27 +149,30 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
               email: email,
               mobileNumber: mobile.isEmpty ? null : mobile,
               photoUrl: _photoUrl,
+              dateOfBirth: _dateOfBirth,
             );
+        debugPrint('EmployeeFormScreen._save: createEmployee succeeded username=${_usernameController.text.trim()}');
       }
 
       if (!mounted) return;
-      final usernameLine = 'Username: ${credentials.username}';
-      final loginLine = 'Email: ${credentials.loginEmail}';
-      final passwordLine = _isEditing ? '' : '\nPassword: ${_passwordController.text}';
-      await QuickAlert.show(
-        context: context,
-        type: QuickAlertType.success,
+      final message = buildCredentialsMessage(
+        name: _firstNameController.text.trim(),
+        username: credentials.username,
+        loginEmail: credentials.loginEmail,
+        password: _isEditing ? null : _passwordController.text,
+      );
+      await showCredentialsDialog(
+        context,
         title: _isEditing ? 'Employee updated' : 'Employee created',
-        text: _isEditing
-            ? 'Updated login for this MR:\n$usernameLine\n$loginLine'
-            : 'Login for this MR:\n$usernameLine\n$loginLine$passwordLine\n\n'
-                'Share these with them directly.',
-        confirmBtnText: 'Done',
-        onConfirmBtnTap: () => Navigator.of(context).pop(),
+        message: message,
+        mobileNumber: mobile,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('EmployeeFormScreen._save: save failed error=$error');
+      AppLogger.error('EmployeeForm', _isEditing ? 'updateEmployee failed' : 'createEmployee failed',
+          error: error, stackTrace: stackTrace);
       if (!mounted) return;
       QuickAlert.show(
         context: context,
@@ -226,6 +254,7 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
                 decoration: const InputDecoration(labelText: 'Mobile Number (optional)'),
                 keyboardType: TextInputType.phone,
                 validator: Validators.mobileNumber,
+                maxLength: 10,
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -236,6 +265,20 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
                 ),
                 keyboardType: TextInputType.emailAddress,
                 validator: Validators.email,
+              ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: _pickDateOfBirth,
+                borderRadius: BorderRadius.circular(12),
+                child: InputDecorator(
+                  decoration: const InputDecoration(labelText: 'Date of Birth (optional)'),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(formatIsoForDisplay(_dateOfBirth))),
+                      const Icon(Icons.calendar_today_outlined, size: 18),
+                    ],
+                  ),
+                ),
               ),
               if (!_isEditing) ...[
                 const SizedBox(height: 12),

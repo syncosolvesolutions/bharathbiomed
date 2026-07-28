@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/models/usage_session.dart';
 import 'app_database.dart';
 
@@ -10,6 +12,7 @@ class UsageSessionLocalDataSource {
   final AppDatabase _database;
 
   Future<void> insert(UsageSession session) async {
+    debugPrint('UsageSessionLocalDataSource.insert: inserting session id=${session.id} employeeUid=${session.employeeUid}');
     final db = await _database.database;
     await db.insert('usage_sessions', {
       'id': session.id,
@@ -21,9 +24,11 @@ class UsageSessionLocalDataSource {
       'longitude': session.longitude,
       'synced': 0,
     });
+    debugPrint('UsageSessionLocalDataSource.insert: inserted session id=${session.id}');
   }
 
   Future<void> close(String id, DateTime closedAt) async {
+    debugPrint('UsageSessionLocalDataSource.close: closing session id=$id closedAt=$closedAt');
     final db = await _database.database;
     await db.update(
       'usage_sessions',
@@ -39,6 +44,7 @@ class UsageSessionLocalDataSource {
   /// duration) since there's no better data, rather than letting it linger
   /// as "still open" forever on the admin dashboard.
   Future<void> closeDanglingSessions(String employeeUid) async {
+    debugPrint('UsageSessionLocalDataSource.closeDanglingSessions: employeeUid=$employeeUid');
     final db = await _database.database;
     final rows = await db.query(
       'usage_sessions',
@@ -46,6 +52,7 @@ class UsageSessionLocalDataSource {
       where: 'employeeUid = ? AND closedAt IS NULL',
       whereArgs: [employeeUid],
     );
+    debugPrint('UsageSessionLocalDataSource.closeDanglingSessions: found ${rows.length} dangling sessions');
     for (final row in rows) {
       await db.update(
         'usage_sessions',
@@ -57,15 +64,18 @@ class UsageSessionLocalDataSource {
   }
 
   Future<List<UsageSession>> getUnsynced() async {
+    debugPrint('UsageSessionLocalDataSource.getUnsynced: querying unsynced closed sessions');
     final db = await _database.database;
     final rows = await db.query(
       'usage_sessions',
       where: 'synced = 0 AND closedAt IS NOT NULL',
     );
+    debugPrint('UsageSessionLocalDataSource.getUnsynced: found ${rows.length} unsynced sessions');
     return rows.map(_fromRow).toList();
   }
 
   Future<void> markSynced(List<String> ids) async {
+    debugPrint('UsageSessionLocalDataSource.markSynced: marking ${ids.length} sessions as synced');
     if (ids.isEmpty) return;
     final db = await _database.database;
     final batch = db.batch();

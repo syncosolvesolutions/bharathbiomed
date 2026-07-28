@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
@@ -41,8 +42,12 @@ final usageDashboardControllerProvider =
 class UsageDashboardController extends AsyncNotifier<UsageDashboardData> {
   @override
   Future<UsageDashboardData> build() async {
+    debugPrint('UsageDashboardController.build: fetching employees');
     final employees = await ref.read(employeeRepositoryProvider).fetchAll();
+    debugPrint('UsageDashboardController.build: fetched ${employees.length} employees');
+    debugPrint('UsageDashboardController.build: fetching recent usage sessions');
     final sessions = await ref.read(usageSessionRepositoryProvider).fetchRecentForDashboard();
+    debugPrint('UsageDashboardController.build: fetched ${sessions.length} sessions');
 
     final sessionsByEmployee = <String, List<UsageSession>>{};
     for (final session in sessions) {
@@ -75,6 +80,8 @@ class UsageDashboardController extends AsyncNotifier<UsageDashboardData> {
   }
 
   Future<void> refresh() async {
+    debugPrint('UsageDashboardController.refresh: refreshing usage dashboard');
     state = await AsyncValue.guard(build);
+    debugPrint('UsageDashboardController.refresh: done, hasError=${state.hasError}');
   }
 }

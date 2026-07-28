@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'repositories/admin_notifications_repository.dart';
+import 'repositories/admin_profile_repository.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/designation_repository.dart';
 import 'repositories/employee_repository.dart';
@@ -18,3 +20,8 @@ final employeeRepositoryProvider = Provider<EmployeeRepository>((ref) => Employe
 final designationRepositoryProvider = Provider<DesignationRepository>((ref) => DesignationRepository());
 
 final usageSessionRepositoryProvider = Provider<UsageSessionRepository>((ref) => UsageSessionRepository());
+
+final adminProfileRepositoryProvider = Provider<AdminProfileRepository>((ref) => AdminProfileRepository());
+
+final adminNotificationsRepositoryProvider =
+    Provider<AdminNotificationsRepository>((ref) => AdminNotificationsRepository());

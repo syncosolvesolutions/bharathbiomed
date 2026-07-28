@@ -6,6 +6,7 @@ import '../../data/providers.dart';
 import '../../domain/models/employee.dart';
 import '../../domain/models/product.dart';
 import '../../features/admin/admin_home_screen.dart';
+import '../../features/admin/admin_notifications_screen.dart';
 import '../../features/admin/department_products_screen.dart';
 import '../../features/admin/employee_form_screen.dart';
 import '../../features/admin/employee_sessions_screen.dart';
@@ -20,6 +21,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/catalog/product_list_screen.dart';
 import '../../features/legal/legal_content.dart';
 import '../../features/legal/legal_document_screen.dart';
+import '../../features/profile/profile_screen.dart';
 import '../../features/slideshow/slideshow_screen.dart';
 import '../auth/admin_access.dart';
 
@@ -34,6 +36,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/login',
     refreshListenable: refreshNotifier,
     redirect: (context, state) {
+      debugPrint('app_router.redirect: evaluating redirect for location=${state.matchedLocation}');
       final user = ref.read(authRepositoryProvider).currentUser;
       final isLoggedIn = user != null;
       final onLoginScreen = state.matchedLocation == '/login';
@@ -43,6 +46,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // against; reaching this route while signed out (deep link, restored
       // back-stack) would otherwise surface a raw "no signed-in user" error.
       if (state.matchedLocation == '/account/change-password' && !isLoggedIn) return '/login';
+      if (state.matchedLocation == '/account/profile' && !isLoggedIn) return '/login';
 
       // Admin routes are gated server-side too (Firestore rules, Cloud
       // Functions) — this redirect just keeps a non-admin (or a logged-out
@@ -74,6 +78,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(path: '/catalog', builder: (context, state) => const ProductListScreen()),
       GoRoute(path: '/account/change-password', builder: (context, state) => const ChangePasswordScreen()),
+      GoRoute(path: '/account/profile', builder: (context, state) => const ProfileScreen()),
       GoRoute(
         path: '/legal/terms',
         builder: (context, state) =>
@@ -96,6 +101,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/admin/designations', builder: (context, state) => const ManageDesignationsScreen()),
       GoRoute(path: '/admin/employees', builder: (context, state) => const ManageEmployeesScreen()),
+      GoRoute(path: '/admin/notifications', builder: (context, state) => const AdminNotificationsScreen()),
       GoRoute(path: '/admin/employees/add', builder: (context, state) => const EmployeeFormScreen()),
       GoRoute(
         path: '/admin/employees/edit',
@@ -118,5 +124,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// A [Listenable] go_router can watch, nudged manually via [ping] instead of
 /// wrapping a raw stream (Riverpod's `.stream` accessor is deprecated).
 class _GoRouterRefreshNotifier extends ChangeNotifier {
-  void ping() => notifyListeners();
+  void ping() {
+    debugPrint('_GoRouterRefreshNotifier.ping: notifying router listeners');
+    notifyListeners();
+  }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/connectivity/connectivity_provider.dart';
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
@@ -38,6 +39,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   void dispose() {
+    debugPrint('LoginScreen.dispose: disposing controllers');
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -48,7 +50,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// been synced, there's nothing to show offline, so send the user to the
   /// sign-in section instead.
   Future<void> _continueOffline() async {
+    debugPrint('LoginScreen._continueOffline: checking for cached catalog data');
     final hasData = await ref.read(productRepositoryProvider).hasCachedCatalog();
+    debugPrint('LoginScreen._continueOffline: hasCachedCatalog returned hasData=$hasData');
     if (!mounted) return;
 
     if (!hasData) {
@@ -71,8 +75,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// so the freshly-signed-in user has current data available offline
   /// afterwards.
   Future<void> _login() async {
+    debugPrint('LoginScreen._login: form submitted, username=${_emailController.text.trim()}');
     if (!_formKey.currentState!.validate()) return;
 
+    debugPrint('LoginScreen._login: calling authController.signIn');
     await ref.read(authControllerProvider.notifier).signIn(
           _emailController.text.trim(),
           _passwordController.text.trim(),
@@ -81,15 +87,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final authState = ref.read(authControllerProvider);
     if (authState.hasError) {
+      debugPrint('LoginScreen._login: signIn failed error=${authState.error}');
       final message = UserFacingError.describe(authState.error!);
       QuickAlert.show(context: context, type: QuickAlertType.error, title: 'Sign-in error', text: message);
       return;
     }
+    debugPrint('LoginScreen._login: signIn succeeded');
 
     // Reuse the same sync path as the in-catalog sync button, so the very
     // first sign-in also downloads the catalog for later offline use.
     try {
+      debugPrint('LoginScreen._login: calling catalogController.sync');
       await ref.read(catalogControllerProvider.notifier).sync();
+      debugPrint('LoginScreen._login: catalog sync succeeded');
       if (!mounted) return;
       await QuickAlert.show(
         context: context,
@@ -97,7 +107,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         title: 'Synced',
         text: 'Data synced successfully.',
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('LoginScreen._login: post-signin sync failed error=$error');
+      AppLogger.error('Login', 'post-signin sync failed', error: error, stackTrace: stackTrace);
       if (!mounted) return;
       await QuickAlert.show(
         context: context,
@@ -116,6 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// case is directed to the admin instead (see Manage Employees > Reset
   /// Password).
   Future<void> _forgotPassword() async {
+    debugPrint('LoginScreen._forgotPassword: opening forgot-password dialog');
     final controller = TextEditingController(text: _emailController.text.trim());
     final input = await showDialog<String>(
       context: context,
@@ -146,7 +159,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
 
     try {
+      debugPrint('LoginScreen._forgotPassword: calling authController.sendPasswordResetEmail');
       await ref.read(authControllerProvider.notifier).sendPasswordResetEmail(input);
+      debugPrint('LoginScreen._forgotPassword: sendPasswordResetEmail succeeded');
       if (!mounted) return;
       QuickAlert.show(
         context: context,
@@ -154,7 +169,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         title: 'Check your email',
         text: 'If $input is registered, a password reset link has been sent to it.',
       );
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('LoginScreen._forgotPassword: sendPasswordResetEmail failed error=$error');
       if (!mounted) return;
       // Don't reveal whether the email is registered (enumeration risk) —
       // show the same generic success message for "not found" as for a
@@ -169,6 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         );
         return;
       }
+      AppLogger.error('Login', 'sendPasswordResetEmail failed', error: error, stackTrace: stackTrace);
       QuickAlert.show(
         context: context,
         type: QuickAlertType.error,

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class Validators {
   Validators._();
 
@@ -10,6 +12,7 @@ class Validators {
   static final RegExp _usernamePattern = RegExp(r'^[a-z0-9._-]{3,32}$');
 
   static String? email(String? value) {
+    debugPrint('Validators.email: validating value=$value');
     if (value == null || value.isEmpty) {
       return 'Please enter your email';
     }
@@ -20,6 +23,7 @@ class Validators {
   }
 
   static String? name(String? value, {String fieldLabel = 'name'}) {
+    debugPrint('Validators.name: validating fieldLabel=$fieldLabel value=$value');
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) {
       return 'Please enter a $fieldLabel';
@@ -31,6 +35,7 @@ class Validators {
   }
 
   static String? required(String? value, {String fieldLabel = 'value'}) {
+    debugPrint('Validators.required: validating fieldLabel=$fieldLabel');
     if (value == null || value.trim().isEmpty) {
       return 'Please enter a $fieldLabel';
     }
@@ -38,6 +43,7 @@ class Validators {
   }
 
   static String? username(String? value) {
+    debugPrint('Validators.username: validating value=$value');
     final trimmed = value?.trim().toLowerCase() ?? '';
     if (trimmed.isEmpty) {
       return 'Please enter a username';
@@ -51,6 +57,7 @@ class Validators {
   /// Optional field: `null`/empty passes, but a non-empty value must look
   /// like a real phone number.
   static String? mobileNumber(String? value) {
+    debugPrint('Validators.mobileNumber: validating value=$value');
     final trimmed = value?.trim() ?? '';
     if (trimmed.isEmpty) return null;
     if (!RegExp(r'^\+?[0-9\s-]{7,15}$').hasMatch(trimmed)) {
@@ -63,6 +70,7 @@ class Validators {
   /// email or an MR's plain username (see core/auth/employee_login.dart), so
   /// it can't require email formatting the way [email] does.
   static String? loginIdentifier(String? value) {
+    debugPrint('Validators.loginIdentifier: validating value=$value');
     if (value == null || value.trim().isEmpty) {
       return 'Please enter your email or username';
     }
@@ -73,6 +81,7 @@ class Validators {
   }
 
   static String? password(String? value) {
+    debugPrint('Validators.password: validating password presence');
     if (value == null || value.isEmpty) {
       return 'Please enter your password';
     }
@@ -82,6 +91,7 @@ class Validators {
   /// For an admin setting an MR's initial password — mirrors the Cloud
   /// Function's minimum length so the check happens before the round trip.
   static String? newPassword(String? value) {
+    debugPrint('Validators.newPassword: validating new password length');
     if (value == null || value.isEmpty) {
       return 'Please enter a password';
     }

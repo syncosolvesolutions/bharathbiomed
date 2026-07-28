@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 
 /// A catalog product. [departments] maps a department name to this
 /// product's display position within that department (lower sorts first).
@@ -18,6 +19,7 @@ class Product extends Equatable {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
+    debugPrint('Product.fromJson: parsing product document id=${json['id']}');
     return Product(
       id: json['id'] as String,
       name: json['name'] as String,

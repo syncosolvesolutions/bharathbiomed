@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/models/designation.dart';
 import '../remote/designation_remote_data_source.dart';
 
@@ -19,9 +21,11 @@ class DesignationRepository {
   final DesignationRemoteDataSource _remote;
 
   Future<List<Designation>> fetchAll() async {
+    debugPrint('DesignationRepository.fetchAll: fetching designations');
     final designations = await _remote.fetchAll();
     if (designations.isNotEmpty) return designations;
 
+    debugPrint('DesignationRepository.fetchAll: no designations found, seeding defaults');
     for (final name in defaultDesignations) {
       // Re-fetching before each seed insert (rather than trusting the single
       // check above) closes most of the race where two admins open
@@ -35,6 +39,7 @@ class DesignationRepository {
   }
 
   Future<void> add(String name) async {
+    debugPrint('DesignationRepository.add: adding designation name=$name');
     final existing = await _remote.fetchAll();
     if (existing.any((d) => d.name.toLowerCase() == name.toLowerCase())) {
       throw Exception('A designation named "$name" already exists.');
@@ -43,6 +48,7 @@ class DesignationRepository {
   }
 
   Future<void> rename(String id, String name) async {
+    debugPrint('DesignationRepository.rename: renaming designation id=$id newName=$name');
     final existing = await _remote.fetchAll();
     if (existing.any((d) => d.id != id && d.name.toLowerCase() == name.toLowerCase())) {
       throw Exception('A designation named "$name" already exists.');
@@ -50,5 +56,8 @@ class DesignationRepository {
     await _remote.update(id, name);
   }
 
-  Future<void> delete(String id) => _remote.delete(id);
+  Future<void> delete(String id) {
+    debugPrint('DesignationRepository.delete: deleting designation id=$id');
+    return _remote.delete(id);
+  }
 }

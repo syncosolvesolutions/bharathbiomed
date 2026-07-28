@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
+import '../../core/utils/credential_share.dart';
 import '../../domain/models/employee.dart';
 import 'employee_controller.dart';
+import 'widgets/credentials_dialog.dart';
 
 const _defaultResetPassword = 'Bharathbio@2026';
 
@@ -29,6 +32,7 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
 
   @override
   void dispose() {
+    debugPrint('ManageEmployeesScreen.dispose: disposing');
     _searchController.dispose();
     super.dispose();
   }
@@ -52,6 +56,7 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref, Employee employee) async {
+    debugPrint('ManageEmployeesScreen._delete: delete requested uid=${employee.uid}');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -67,8 +72,12 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
 
     setState(() => _busyUids.add(employee.uid));
     try {
+      debugPrint('ManageEmployeesScreen._delete: calling deleteEmployee uid=${employee.uid}');
       await ref.read(employeeControllerProvider.notifier).deleteEmployee(employee.uid);
-    } catch (error) {
+      debugPrint('ManageEmployeesScreen._delete: deleteEmployee succeeded uid=${employee.uid}');
+    } catch (error, stackTrace) {
+      debugPrint('ManageEmployeesScreen._delete: deleteEmployee failed error=$error');
+      AppLogger.error('ManageEmployees', 'deleteEmployee failed', error: error, stackTrace: stackTrace);
       if (!context.mounted) return;
       QuickAlert.show(
         context: context,
@@ -82,6 +91,7 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
   }
 
   Future<void> _resetPassword(BuildContext context, WidgetRef ref, Employee employee) async {
+    debugPrint('ManageEmployeesScreen._resetPassword: reset password requested uid=${employee.uid}');
     final controller = TextEditingController(text: _defaultResetPassword);
     final newPassword = await showDialog<String>(
       context: context,
@@ -102,15 +112,25 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
 
     setState(() => _busyUids.add(employee.uid));
     try {
+      debugPrint('ManageEmployeesScreen._resetPassword: calling resetPassword uid=${employee.uid}');
       await ref.read(employeeControllerProvider.notifier).resetPassword(employee.uid, newPassword);
+      debugPrint('ManageEmployeesScreen._resetPassword: resetPassword succeeded uid=${employee.uid}');
       if (!context.mounted) return;
-      QuickAlert.show(
-        context: context,
-        type: QuickAlertType.success,
-        title: 'Password reset',
-        text: 'New password for ${employee.loginIdentifier}:\n$newPassword\n\nShare it with them directly.',
+      final message = buildCredentialsMessage(
+        name: employee.firstName,
+        username: employee.username,
+        loginEmail: employee.loginIdentifier,
+        password: newPassword,
       );
-    } catch (error) {
+      await showCredentialsDialog(
+        context,
+        title: 'Password reset',
+        message: message,
+        mobileNumber: employee.mobileNumber,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('ManageEmployeesScreen._resetPassword: resetPassword failed error=$error');
+      AppLogger.error('ManageEmployees', 'resetPassword failed', error: error, stackTrace: stackTrace);
       if (!context.mounted) return;
       QuickAlert.show(
         context: context,
@@ -123,7 +143,27 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
     }
   }
 
+  /// Resends just username/email (no password — it's not known once account
+  /// creation/reset has happened) via the same WhatsApp/Share dialog, for
+  /// when the admin wants to hand credentials to an MR again without
+  /// resetting their password.
+  Future<void> _sendCredentials(BuildContext context, Employee employee) async {
+    debugPrint('ManageEmployeesScreen._sendCredentials: uid=${employee.uid}');
+    final message = buildCredentialsMessage(
+      name: employee.firstName,
+      username: employee.username,
+      loginEmail: employee.loginIdentifier,
+    );
+    await showCredentialsDialog(
+      context,
+      title: 'Send credentials',
+      message: message,
+      mobileNumber: employee.mobileNumber,
+    );
+  }
+
   Future<void> _setStatus(BuildContext context, WidgetRef ref, Employee employee, bool disabled) async {
+    debugPrint('ManageEmployeesScreen._setStatus: status change requested uid=${employee.uid} disabled=$disabled');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -144,8 +184,12 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
 
     setState(() => _busyUids.add(employee.uid));
     try {
+      debugPrint('ManageEmployeesScreen._setStatus: calling setStatus uid=${employee.uid} disabled=$disabled');
       await ref.read(employeeControllerProvider.notifier).setStatus(employee.uid, disabled: disabled);
-    } catch (error) {
+      debugPrint('ManageEmployeesScreen._setStatus: setStatus succeeded uid=${employee.uid} disabled=$disabled');
+    } catch (error, stackTrace) {
+      debugPrint('ManageEmployeesScreen._setStatus: setStatus failed error=$error');
+      AppLogger.error('ManageEmployees', 'setStatus failed', error: error, stackTrace: stackTrace);
       if (!context.mounted) return;
       QuickAlert.show(
         context: context,
@@ -167,7 +211,7 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
             child: Row(
               children: [
                 Expanded(
@@ -276,6 +320,11 @@ class _ManageEmployeesScreenState extends ConsumerState<ManageEmployeesScreen> {
                                   icon: const Icon(Icons.lock_reset),
                                   tooltip: 'Reset password',
                                   onPressed: () => _resetPassword(context, ref, employee),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.send_outlined),
+                                  tooltip: 'Send credentials',
+                                  onPressed: () => _sendCredentials(context, employee),
                                 ),
                                 IconButton(
                                   icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),

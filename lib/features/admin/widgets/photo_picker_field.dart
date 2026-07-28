@@ -1,8 +1,9 @@
-import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/error/app_logger.dart';
 import '../../../core/error/user_facing_error.dart';
 import '../../../data/remote/image_uploader.dart';
 
@@ -36,10 +37,12 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
   String? _error;
 
   Future<void> _pick() async {
+    debugPrint('PhotoPickerField._pick: pick requested folder=${widget.folder}');
     final result = await _uploader.pickImage();
     if (!mounted) return;
 
     if (result.error != null) {
+      debugPrint('PhotoPickerField._pick: pick failed error=${result.error}');
       setState(() => _error = result.error);
       return;
     }
@@ -52,10 +55,14 @@ class _PhotoPickerFieldState extends State<PhotoPickerField> {
     });
 
     try {
+      debugPrint('PhotoPickerField._pick: uploading image folder=${widget.folder}');
       final url = await _uploader.upload(result.bytes!, folder: widget.folder);
+      debugPrint('PhotoPickerField._pick: upload succeeded folder=${widget.folder}');
       if (!mounted) return;
       widget.onUploaded(url);
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('PhotoPickerField._pick: upload failed error=$error');
+      AppLogger.error('PhotoPicker', 'upload failed', error: error, stackTrace: stackTrace);
       if (!mounted) return;
       setState(() => _error = 'Failed to upload image: ${UserFacingError.describe(error)}');
     } finally {

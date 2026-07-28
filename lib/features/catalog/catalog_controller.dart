@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
@@ -12,6 +13,7 @@ final catalogControllerProvider = AsyncNotifierProvider<CatalogController, Catal
 class CatalogController extends AsyncNotifier<CatalogSnapshot> {
   @override
   Future<CatalogSnapshot> build() {
+    debugPrint('CatalogController.build: loading cached catalog');
     return ref.read(productRepositoryProvider).loadCachedCatalog();
   }
 
@@ -20,7 +22,9 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
   /// synced catalog stays on screen instead of being replaced by an error
   /// view — callers should catch and report the failure themselves.
   Future<void> sync() async {
+    debugPrint('CatalogController.sync: starting catalog sync with Firestore');
     final snapshot = await ref.read(productRepositoryProvider).sync();
+    debugPrint('CatalogController.sync: catalog sync succeeded');
     state = AsyncData(snapshot);
 
     // Best-effort: this is the one point this app talks to the server
@@ -29,8 +33,11 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
     // its own whenever connectivity appears. A failure here must never mask
     // the catalog sync succeeding.
     try {
+      debugPrint('CatalogController.sync: uploading pending usage sessions');
       await ref.read(usageSessionRepositoryProvider).uploadPending();
-    } catch (_) {
+      debugPrint('CatalogController.sync: uploadPending succeeded');
+    } catch (error) {
+      debugPrint('CatalogController.sync: uploadPending failed error=$error');
       // Intentionally ignored — see comment above.
     }
   }

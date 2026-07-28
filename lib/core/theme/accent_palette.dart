@@ -21,6 +21,7 @@ class AccentPalette {
   /// Deterministic: the same label always maps to the same color, so an
   /// employee/department's color stays stable across rebuilds and screens.
   static Color forLabel(String label) {
+    debugPrint('AccentPalette.forLabel: computing accent color for label=$label');
     if (label.isEmpty) return _colors.first;
     final index = label.codeUnits.fold<int>(0, (sum, unit) => sum + unit) % _colors.length;
     return _colors[index];

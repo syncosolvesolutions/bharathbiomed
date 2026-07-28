@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
 import 'admin_catalog_controller.dart';
@@ -20,6 +21,7 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
 
   @override
   void dispose() {
+    debugPrint('ManageDepartmentsScreen.dispose: disposing');
     _nameController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -32,15 +34,20 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
   }
 
   Future<void> _runGuarded(Future<void> Function() action, {required String failureTitle}) async {
+    debugPrint('ManageDepartmentsScreen._runGuarded: running action "$failureTitle"');
     try {
       await action();
-    } catch (error) {
+      debugPrint('ManageDepartmentsScreen._runGuarded: action succeeded "$failureTitle"');
+    } catch (error, stackTrace) {
+      debugPrint('ManageDepartmentsScreen._runGuarded: action failed "$failureTitle" error=$error');
+      AppLogger.error('ManageDepartments', failureTitle, error: error, stackTrace: stackTrace);
       if (!mounted) return;
       QuickAlert.show(context: context, type: QuickAlertType.error, title: failureTitle, text: UserFacingError.describe(error));
     }
   }
 
   Future<void> _add() async {
+    debugPrint('ManageDepartmentsScreen._add: add requested');
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
@@ -56,6 +63,7 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
   }
 
   Future<void> _rename(String oldName) async {
+    debugPrint('ManageDepartmentsScreen._rename: rename requested oldName=$oldName');
     final controller = TextEditingController(text: oldName);
     final newName = await showDialog<String>(
       context: context,
@@ -77,6 +85,7 @@ class _ManageDepartmentsScreenState extends ConsumerState<ManageDepartmentsScree
   }
 
   Future<void> _delete(String name) async {
+    debugPrint('ManageDepartmentsScreen._delete: delete requested name=$name');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

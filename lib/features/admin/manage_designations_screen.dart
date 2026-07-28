@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
 import '../../domain/models/designation.dart';
@@ -21,6 +22,7 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
 
   @override
   void dispose() {
+    debugPrint('ManageDesignationsScreen.dispose: disposing');
     _nameController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -33,15 +35,20 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
   }
 
   Future<void> _runGuarded(Future<void> Function() action, {required String failureTitle}) async {
+    debugPrint('ManageDesignationsScreen._runGuarded: running action "$failureTitle"');
     try {
       await action();
-    } catch (error) {
+      debugPrint('ManageDesignationsScreen._runGuarded: action succeeded "$failureTitle"');
+    } catch (error, stackTrace) {
+      debugPrint('ManageDesignationsScreen._runGuarded: action failed "$failureTitle" error=$error');
+      AppLogger.error('ManageDesignations', failureTitle, error: error, stackTrace: stackTrace);
       if (!mounted) return;
       QuickAlert.show(context: context, type: QuickAlertType.error, title: failureTitle, text: UserFacingError.describe(error));
     }
   }
 
   Future<void> _add() async {
+    debugPrint('ManageDesignationsScreen._add: add requested');
     final name = _nameController.text.trim();
     if (name.isEmpty) return;
 
@@ -57,6 +64,7 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
   }
 
   Future<void> _rename(Designation designation) async {
+    debugPrint('ManageDesignationsScreen._rename: rename requested id=${designation.id}');
     final controller = TextEditingController(text: designation.name);
     final newName = await showDialog<String>(
       context: context,
@@ -78,6 +86,7 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
   }
 
   Future<void> _delete(Designation designation) async {
+    debugPrint('ManageDesignationsScreen._delete: delete requested id=${designation.id}');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

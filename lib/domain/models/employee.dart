@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 
 /// A Medical Representative account created by the admin. Login itself is
 /// handled by Firebase Auth (see [EmployeeRepository.create]); this is just
@@ -29,6 +30,13 @@ class Employee extends Equatable {
   /// history are kept, unlike deleting the employee outright.
   final bool disabled;
 
+  /// Plain `"YYYY-MM-DD"` string rather than a `Timestamp`/`DateTime` — this
+  /// is a date-only value (no meaningful time-of-day or timezone), so
+  /// storing it as a string sidesteps timezone-shift bugs when comparing
+  /// month/day for the birthday check below. Settable by the admin
+  /// (create/edit) or by the MR themselves via the Profile screen.
+  final String? dateOfBirth;
+
   const Employee({
     required this.uid,
     required this.username,
@@ -40,6 +48,7 @@ class Employee extends Equatable {
     this.photoUrl,
     this.email,
     this.disabled = false,
+    this.dateOfBirth,
   });
 
   String get displayName => '$firstName $lastName';
@@ -48,7 +57,23 @@ class Employee extends Equatable {
   /// one on file, otherwise their username.
   String get loginIdentifier => (email != null && email!.isNotEmpty) ? email! : username;
 
+  /// Whether today is this employee's birthday, comparing month/day only
+  /// (the year in [dateOfBirth] is irrelevant here).
+  bool get isBirthdayToday {
+    debugPrint('Employee.isBirthdayToday: checking birthday for uid=$uid dateOfBirth=$dateOfBirth');
+    final dob = dateOfBirth;
+    if (dob == null || dob.isEmpty) return false;
+    final parts = dob.split('-');
+    if (parts.length != 3) return false;
+    final month = int.tryParse(parts[1]);
+    final day = int.tryParse(parts[2]);
+    if (month == null || day == null) return false;
+    final now = DateTime.now();
+    return now.month == month && now.day == day;
+  }
+
   factory Employee.fromJson(String uid, Map<String, dynamic> json) {
+    debugPrint('Employee.fromJson: parsing employee document uid=$uid');
     return Employee(
       uid: uid,
       username: json['username'] as String? ?? '',
@@ -60,10 +85,22 @@ class Employee extends Equatable {
       photoUrl: json['photoUrl'] as String?,
       email: json['email'] as String?,
       disabled: json['disabled'] as bool? ?? false,
+      dateOfBirth: json['dateOfBirth'] as String?,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [uid, username, firstName, lastName, designation, areaName, mobileNumber, photoUrl, email, disabled];
+  List<Object?> get props => [
+        uid,
+        username,
+        firstName,
+        lastName,
+        designation,
+        areaName,
+        mobileNumber,
+        photoUrl,
+        email,
+        disabled,
+        dateOfBirth,
+      ];
 }

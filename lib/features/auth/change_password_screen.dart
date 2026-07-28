@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:quickalert/quickalert.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/utils/validators.dart';
 import 'auth_controller.dart';
@@ -26,6 +27,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
 
   @override
   void dispose() {
+    debugPrint('ChangePasswordScreen.dispose: disposing controllers');
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
@@ -33,14 +35,17 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   }
 
   Future<void> _submit() async {
+    debugPrint('ChangePasswordScreen._submit: form submitted');
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _saving = true);
     try {
+      debugPrint('ChangePasswordScreen._submit: calling authController.changePassword');
       await ref.read(authControllerProvider.notifier).changePassword(
             currentPassword: _currentPasswordController.text,
             newPassword: _newPasswordController.text,
           );
+      debugPrint('ChangePasswordScreen._submit: changePassword succeeded');
       if (!mounted) return;
       await QuickAlert.show(
         context: context,
@@ -51,7 +56,9 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
       );
       if (!mounted) return;
       Navigator.of(context).pop();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      debugPrint('ChangePasswordScreen._submit: changePassword failed error=$error');
+      AppLogger.error('ChangePassword', 'changePassword failed', error: error, stackTrace: stackTrace);
       if (!mounted) return;
       QuickAlert.show(
         context: context,

@@ -6,6 +6,7 @@ import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
 import '../auth/auth_controller.dart';
 import 'admin_catalog_controller.dart';
+import 'admin_notifications_controller.dart';
 import 'employee_controller.dart';
 
 /// Entry point for the admin section: departments (tap to manage that
@@ -15,6 +16,7 @@ class AdminHomeScreen extends ConsumerWidget {
   const AdminHomeScreen({super.key});
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
+    debugPrint('AdminHomeScreen._logout: logout requested');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -28,7 +30,9 @@ class AdminHomeScreen extends ConsumerWidget {
     );
     if (confirmed != true || !context.mounted) return;
 
+    debugPrint('AdminHomeScreen._logout: signing out');
     await ref.read(authControllerProvider.notifier).signOut();
+    debugPrint('AdminHomeScreen._logout: signed out');
     if (!context.mounted) return;
     context.go('/login');
   }
@@ -37,11 +41,26 @@ class AdminHomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final catalog = ref.watch(adminCatalogControllerProvider);
     final employees = ref.watch(employeeControllerProvider);
+    final unreadNotifications = ref.watch(unreadAdminNotificationsCountProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin'),
         actions: [
+          IconButton(
+            icon: Badge(
+              label: Text('$unreadNotifications'),
+              isLabelVisible: unreadNotifications > 0,
+              child: const Icon(Icons.notifications_outlined),
+            ),
+            tooltip: 'Notifications',
+            onPressed: () => context.push('/admin/notifications'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
+            onPressed: () => context.push('/account/profile'),
+          ),
           IconButton(
             icon: const Icon(Icons.storefront_outlined),
             tooltip: 'View Catalog (MR view)',
@@ -83,7 +102,10 @@ class AdminHomeScreen extends ConsumerWidget {
               Text('Failed to load catalog: ${UserFacingError.describe(error)}'),
               const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => ref.read(adminCatalogControllerProvider.notifier).refresh(),
+                onPressed: () {
+                  debugPrint('AdminHomeScreen: retry button tapped');
+                  ref.read(adminCatalogControllerProvider.notifier).refresh();
+                },
                 child: const Text('Retry'),
               ),
             ],
@@ -96,7 +118,10 @@ class AdminHomeScreen extends ConsumerWidget {
             );
           }
           return RefreshIndicator(
-            onRefresh: () => ref.read(adminCatalogControllerProvider.notifier).refresh(),
+            onRefresh: () {
+              debugPrint('AdminHomeScreen: pull-to-refresh triggered');
+              return ref.read(adminCatalogControllerProvider.notifier).refresh();
+            },
             child: ListView.builder(
               itemCount: snapshot.departments.length + 1,
               itemBuilder: (context, index) {

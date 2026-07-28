@@ -1,0 +1,22 @@
+rules_version = '2';
+
+// NOTE: this file didn't exist in-repo before — Storage rules were
+// console-managed only, the same situation firestore.rules used to be in
+// (see the note at the top of that file). Review these against the actual
+// console rules before deploying (`firebase deploy --only storage`) so you
+// don't accidentally loosen or break existing access.
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Product photos (admin-managed) and employee/profile photos. Photos
+    // aren't sensitive, and a Storage download URL already embeds its own
+    // access token (bypassing these read rules regardless), so `read` is
+    // left open; `write` just requires a signed-in user. Previously only
+    // the admin's own session ever wrote here (creating/editing an MR's
+    // photo on their behalf); this also lets an MR upload their own profile
+    // photo from the Profile screen.
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}

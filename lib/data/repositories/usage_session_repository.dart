@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../domain/models/usage_session.dart';
@@ -27,6 +28,7 @@ class UsageSessionRepository {
     double? latitude,
     double? longitude,
   }) async {
+    debugPrint('UsageSessionRepository.startSession: starting session employeeUid=$employeeUid username=$username');
     await _local.closeDanglingSessions(employeeUid);
 
     final id = const Uuid().v4();
@@ -38,19 +40,32 @@ class UsageSessionRepository {
       latitude: latitude,
       longitude: longitude,
     ));
+    debugPrint('UsageSessionRepository.startSession: started session id=$id');
     return id;
   }
 
-  Future<void> closeSession(String id) => _local.close(id, DateTime.now());
+  Future<void> closeSession(String id) {
+    debugPrint('UsageSessionRepository.closeSession: closing session id=$id');
+    return _local.close(id, DateTime.now());
+  }
 
   /// Best-effort: never lets a telemetry upload failure interrupt whatever
   /// triggered it (the catalog sync).
   Future<void> uploadPending() async {
+    debugPrint('UsageSessionRepository.uploadPending: checking for unsynced sessions');
     final pending = await _local.getUnsynced();
-    if (pending.isEmpty) return;
+    if (pending.isEmpty) {
+      debugPrint('UsageSessionRepository.uploadPending: no pending sessions to upload');
+      return;
+    }
+    debugPrint('UsageSessionRepository.uploadPending: uploading ${pending.length} pending sessions');
     await _remote.upload(pending);
     await _local.markSynced(pending.map((session) => session.id).toList());
+    debugPrint('UsageSessionRepository.uploadPending: upload and local sync-marking complete');
   }
 
-  Future<List<UsageSession>> fetchRecentForDashboard() => _remote.fetchRecent();
+  Future<List<UsageSession>> fetchRecentForDashboard() {
+    debugPrint('UsageSessionRepository.fetchRecentForDashboard: fetching recent sessions for dashboard');
+    return _remote.fetchRecent();
+  }
 }

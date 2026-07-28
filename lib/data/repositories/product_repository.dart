@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../domain/models/product.dart';
 import '../local/product_local_data_source.dart';
 import '../remote/product_remote_data_source.dart';
@@ -33,8 +34,11 @@ class ProductRepository {
   Future<bool> hasCachedCatalog() => _local.hasProducts();
 
   Future<CatalogSnapshot> loadCachedCatalog() async {
+    debugPrint('ProductRepository.loadCachedCatalog: loading catalog from local cache');
     final products = await _local.getProducts();
     final departments = await _local.getDepartments();
+    debugPrint(
+        'ProductRepository.loadCachedCatalog: loaded ${products.length} products, ${departments.length} departments');
     return CatalogSnapshot(products: products, departments: departments);
   }
 
@@ -46,19 +50,24 @@ class ProductRepository {
   /// now" — and since this app is offline-first, silently wiping the local
   /// cache here would delete the only copy of the catalog the device has.
   Future<CatalogSnapshot> sync() async {
+    debugPrint('ProductRepository.sync: fetching products from remote');
     final products = await _remote.fetchProducts().timeout(
           _syncTimeout,
           onTimeout: () => throw Exception('Timed out contacting the server. Check your connection and try again.'),
         );
+    debugPrint('ProductRepository.sync: fetching departments from remote');
     final departments = await _remote.fetchDepartments().timeout(
           _syncTimeout,
           onTimeout: () => throw Exception('Timed out contacting the server. Check your connection and try again.'),
         );
 
     if (products.isEmpty || departments.isEmpty) {
+      debugPrint('ProductRepository.sync: remote returned empty catalog, aborting sync');
       throw Exception('Server returned an empty catalog; keeping the existing data on this device.');
     }
 
+    debugPrint(
+        'ProductRepository.sync: fetched ${products.length} products, ${departments.length} departments; replacing local cache');
     await _local.replaceAll(products: products, departments: departments);
 
     // Best-effort: warm the image cache so the catalog is actually usable
@@ -76,8 +85,11 @@ class ProductRepository {
   /// the admin section, which must always act on current server data rather
   /// than whatever this device last synced.
   Future<CatalogSnapshot> fetchLiveCatalog() async {
+    debugPrint('ProductRepository.fetchLiveCatalog: fetching live catalog from remote');
     final products = await _remote.fetchProducts();
     final departments = await _remote.fetchDepartments();
+    debugPrint(
+        'ProductRepository.fetchLiveCatalog: fetched ${products.length} products, ${departments.length} departments');
     return CatalogSnapshot(products: products, departments: departments);
   }
 
@@ -87,14 +99,22 @@ class ProductRepository {
     required Map<String, int> departments,
     required String imageUrl,
   }) {
+    debugPrint('ProductRepository.createProduct: creating product name=$name');
     return _remote.addProduct(name: name, info: info, departments: departments, imageUrl: imageUrl);
   }
 
-  Future<void> updateProduct(Product product) => _remote.updateProduct(product);
+  Future<void> updateProduct(Product product) {
+    debugPrint('ProductRepository.updateProduct: updating product id=${product.id}');
+    return _remote.updateProduct(product);
+  }
 
-  Future<void> deleteProduct(String id) => _remote.deleteProduct(id);
+  Future<void> deleteProduct(String id) {
+    debugPrint('ProductRepository.deleteProduct: deleting product id=$id');
+    return _remote.deleteProduct(id);
+  }
 
   Future<void> addDepartment(String name) async {
+    debugPrint('ProductRepository.addDepartment: adding department name=$name');
     final existing = await _remote.fetchDepartments();
     if (existing.any((d) => d.toLowerCase() == name.toLowerCase())) {
       throw Exception('A department named "$name" already exists.');
@@ -103,6 +123,7 @@ class ProductRepository {
   }
 
   Future<void> renameDepartment(String oldName, String newName) async {
+    debugPrint('ProductRepository.renameDepartment: renaming department oldName=$oldName newName=$newName');
     final existing = await _remote.fetchDepartments();
     if (existing.any((d) => d.toLowerCase() != oldName.toLowerCase() && d.toLowerCase() == newName.toLowerCase())) {
       throw Exception('A department named "$newName" already exists.');
@@ -110,17 +131,22 @@ class ProductRepository {
     await _remote.renameDepartment(oldName, newName);
   }
 
-  Future<void> deleteDepartment(String name) => _remote.deleteDepartment(name);
+  Future<void> deleteDepartment(String name) {
+    debugPrint('ProductRepository.deleteDepartment: deleting department name=$name');
+    return _remote.deleteDepartment(name);
+  }
 
   static Future<void> _defaultPrecacheImages(List<String> imageUrls) async {
+    debugPrint('ProductRepository._defaultPrecacheImages: precaching ${imageUrls.length} images');
     const concurrency = 6;
     for (var i = 0; i < imageUrls.length; i += concurrency) {
       final batch = imageUrls.skip(i).take(concurrency);
       await Future.wait(batch.map((url) async {
         try {
           await DefaultCacheManager().getSingleFile(url);
-        } catch (error) {
-          debugPrint('ProductRepository: failed to precache image $url: $error');
+        } catch (error, stackTrace) {
+          debugPrint('ProductRepository._defaultPrecacheImages: failed to precache image $url error=$error');
+          AppLogger.error('ProductRepository', 'failed to precache image $url', error: error, stackTrace: stackTrace);
         }
       }));
     }
