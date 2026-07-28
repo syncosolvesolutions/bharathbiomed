@@ -44,6 +44,35 @@ export function requireAdmin(request: CallableRequest): string {
 }
 
 /**
+ * "Office Admin": [requireAdmin]'s hardcoded allowlist, or a real employee
+ * whose denormalized `category` is `office_administration` (see
+ * `Designation`/`DesignationCategory` on the Flutter side, kept in sync onto
+ * `Users/{uid}.category` by the same hierarchy trigger that maintains
+ * `permissions`). Gates agency/pharmacy create+deactivate and
+ * `reviewEntityChangeRequest` — deliberately broader than [requireAdmin],
+ * since the business wants any Office Administration designation to have
+ * this, not just the two allowlisted emails. Mirrors firestore.rules'
+ * `isOfficeAdmin()`.
+ */
+export async function requireOfficeAdmin(request: CallableRequest): Promise<string> {
+  logger.info("requireOfficeAdmin: called");
+  const email = request.auth?.token?.email;
+  if (request.auth && email && ADMIN_EMAILS.has(email)) {
+    return request.auth.uid;
+  }
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const uid = request.auth.uid;
+  const userDoc = await getFirestore().collection("Users").doc(uid).get();
+  if (userDoc.data()?.category !== "office_administration") {
+    logger.warn("requireOfficeAdmin: rejected", {uid, category: userDoc.data()?.category ?? null});
+    throw new HttpsError("permission-denied", "Only an Office Admin can perform this action.");
+  }
+  return uid;
+}
+
+/**
  * Non-admin (designation/permission-based) role gate for Order/Invoice-style
  * callables — separate from and unrelated to [requireAdmin]'s hardcoded
  * allowlist (see `Users/{uid}.permissions`, denormalized from the caller's

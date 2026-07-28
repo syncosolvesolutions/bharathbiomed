@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'repositories/admin_notifications_repository.dart';
 import 'repositories/admin_profile_repository.dart';
+import 'repositories/agency_repository.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/designation_repository.dart';
 import 'repositories/device_token_repository.dart';
@@ -10,8 +11,14 @@ import 'repositories/doctor_repository.dart';
 import 'repositories/doctor_visit_log_repository.dart';
 import 'repositories/doctor_visit_plan_repository.dart';
 import 'repositories/employee_repository.dart';
+import 'repositories/entity_change_request_repository.dart';
+import 'repositories/invoice_repository.dart';
+import 'repositories/order_repository.dart';
+import 'repositories/pharmacy_repository.dart';
 import 'repositories/product_repository.dart';
+import 'repositories/rcpa_repository.dart';
 import 'repositories/reminder_repository.dart';
+import 'repositories/sales_target_repository.dart';
 import 'repositories/usage_session_repository.dart';
 
 /// Dependency-injection root for the data layer. Features read repositories
@@ -46,3 +53,18 @@ final doctorVisitLogRepositoryProvider =
 final reminderRepositoryProvider = Provider<ReminderRepository>((ref) => ReminderRepository());
 
 final deviceTokenRepositoryProvider = Provider<DeviceTokenRepository>((ref) => DeviceTokenRepository());
+
+final agencyRepositoryProvider = Provider<AgencyRepository>((ref) => AgencyRepository());
+
+final pharmacyRepositoryProvider = Provider<PharmacyRepository>((ref) => PharmacyRepository());
+
+final entityChangeRequestRepositoryProvider =
+    Provider<EntityChangeRequestRepository>((ref) => EntityChangeRequestRepository());
+
+final orderRepositoryProvider = Provider<OrderRepository>((ref) => OrderRepository());
+
+final invoiceRepositoryProvider = Provider<InvoiceRepository>((ref) => InvoiceRepository());
+
+final salesTargetRepositoryProvider = Provider<SalesTargetRepository>((ref) => SalesTargetRepository());
+
+final rcpaRepositoryProvider = Provider<RcpaRepository>((ref) => RcpaRepository());

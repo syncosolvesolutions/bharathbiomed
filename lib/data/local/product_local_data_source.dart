@@ -25,6 +25,8 @@ class ProductLocalDataSource {
               info: row['info'] as String,
               departments: Map<String, int>.from(jsonDecode(row['departments'] as String) as Map),
               imageUrl: row['imageUrl'] as String,
+              stockQuantity: row['stockQuantity'] as int? ?? 0,
+              unitPrice: (row['unitPrice'] as num?)?.toDouble() ?? 0,
             ))
         .toList();
   }
@@ -58,6 +60,8 @@ class ProductLocalDataSource {
             'info': product.info,
             'departments': jsonEncode(product.departments),
             'imageUrl': product.imageUrl,
+            'stockQuantity': product.stockQuantity,
+            'unitPrice': product.unitPrice,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );

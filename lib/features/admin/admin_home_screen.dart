@@ -97,6 +97,51 @@ class AdminHomeScreen extends ConsumerWidget {
             onPressed: () => context.push('/admin/dashboard'),
           ),
           IconButton(
+            icon: const Icon(Icons.assignment_outlined),
+            tooltip: 'Visit Logs',
+            onPressed: () => context.push('/team/visit-logs'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_business_outlined),
+            tooltip: 'Agencies',
+            onPressed: () => context.push('/agencies'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.local_pharmacy_outlined),
+            tooltip: 'Pharmacies',
+            onPressed: () => context.push('/pharmacies'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.fact_check_outlined),
+            tooltip: 'Agency / Pharmacy Requests',
+            onPressed: () => context.push('/entity-requests'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'Order Workflow',
+            onPressed: () => context.push('/team/orders'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.track_changes_outlined),
+            tooltip: 'Team Targets',
+            onPressed: () => context.push('/team/targets'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.fact_check_outlined),
+            tooltip: 'RCPA Entries',
+            onPressed: () => context.push('/team/rcpa'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.inventory_2_outlined),
+            tooltip: 'Manage Inventory',
+            onPressed: () => context.push('/admin/inventory'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.request_quote_outlined),
+            tooltip: 'Invoices',
+            onPressed: () => context.push('/invoices'),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Log out',
             onPressed: () => _logout(context, ref),

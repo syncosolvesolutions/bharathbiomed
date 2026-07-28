@@ -34,6 +34,7 @@ class AdminCatalogController extends AsyncNotifier<CatalogSnapshot> {
     required String info,
     required Map<String, int> departments,
     required String imageUrl,
+    double unitPrice = 0,
   }) async {
     debugPrint('AdminCatalogController.createProduct: creating product name=$name');
     await ref.read(productRepositoryProvider).createProduct(
@@ -41,6 +42,7 @@ class AdminCatalogController extends AsyncNotifier<CatalogSnapshot> {
           info: info,
           departments: departments,
           imageUrl: imageUrl,
+          unitPrice: unitPrice,
         );
     debugPrint('AdminCatalogController.createProduct: created product name=$name');
     await refresh();
@@ -83,6 +85,14 @@ class AdminCatalogController extends AsyncNotifier<CatalogSnapshot> {
     debugPrint('AdminCatalogController.deleteDepartment: deleting department name=$name');
     await ref.read(productRepositoryProvider).deleteDepartment(name);
     debugPrint('AdminCatalogController.deleteDepartment: deleted department name=$name');
+    await refresh();
+    await _resyncDeviceCache();
+  }
+
+  Future<void> adjustStock(String productId, int delta) async {
+    debugPrint('AdminCatalogController.adjustStock: productId=$productId delta=$delta');
+    await ref.read(productRepositoryProvider).adjustStock(productId, delta);
+    debugPrint('AdminCatalogController.adjustStock: adjusted productId=$productId');
     await refresh();
     await _resyncDeviceCache();
   }

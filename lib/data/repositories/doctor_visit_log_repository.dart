@@ -25,6 +25,7 @@ class DoctorVisitLogRepository {
     required String feedback,
     double? latitude,
     double? longitude,
+    Map<String, int> samplesGiven = const {},
   }) async {
     debugPrint('DoctorVisitLogRepository.logVisit: mrUid=$mrUid doctorId=$doctorId visitDate=$visitDate');
     await _local.insert(DoctorVisitLog(
@@ -38,6 +39,7 @@ class DoctorVisitLogRepository {
       latitude: latitude,
       longitude: longitude,
       createdAt: DateTime.now(),
+      samplesGiven: samplesGiven,
     ));
   }
 
@@ -61,4 +63,8 @@ class DoctorVisitLogRepository {
   }
 
   Future<List<DoctorVisitLog>> fetchRecentForDashboard() => _remote.fetchRecent();
+
+  /// For a manager without global visibility — see
+  /// [DoctorVisitLogRemoteDataSource.fetchRecentForEmployees].
+  Future<List<DoctorVisitLog>> fetchRecentForEmployees(List<String> mrUids) => _remote.fetchRecentForEmployees(mrUids);
 }

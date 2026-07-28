@@ -32,6 +32,10 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(usageDashboardControllerProvider);
+    // Reachable at both /admin/dashboard (admin) and /team/usage (a manager
+    // without the admin allowlist) — push relative to whichever base this
+    // instance was reached through instead of hardcoding one.
+    final base = GoRouterState.of(context).matchedLocation;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Usage Dashboard')),
@@ -127,7 +131,7 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
                                   ),
                                 ),
                                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                                onTap: () => context.push('/admin/dashboard/sessions', extra: summary.employee),
+                                onTap: () => context.push('$base/sessions', extra: summary.employee),
                               ),
                             );
                           },

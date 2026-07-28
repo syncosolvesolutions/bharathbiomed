@@ -3,7 +3,16 @@
 /// (see `HierarchyService`), not just what actions are allowed — everything
 /// else only gates a specific mutation. `markDelivered` is deliberately not
 /// here: it's ownership-scoped (assigned field agent only), not a checkbox.
-enum Permission { createOrders, approveOrders, dispatchOrders, manageInvoices, approveRequests, viewGlobalData }
+enum Permission {
+  createOrders,
+  approveOrders,
+  dispatchOrders,
+  manageInvoices,
+  approveRequests,
+  viewGlobalData,
+  manageAgencies,
+  manageTargets,
+}
 
 extension PermissionValue on Permission {
   String get value => switch (this) {
@@ -13,6 +22,8 @@ extension PermissionValue on Permission {
         Permission.manageInvoices => 'manage_invoices',
         Permission.approveRequests => 'approve_requests',
         Permission.viewGlobalData => 'view_global_data',
+        Permission.manageAgencies => 'manage_agencies',
+        Permission.manageTargets => 'manage_targets',
       };
 
   String get label => switch (this) {
@@ -22,6 +33,8 @@ extension PermissionValue on Permission {
         Permission.manageInvoices => 'Manage Invoices',
         Permission.approveRequests => 'Approve Requests',
         Permission.viewGlobalData => 'View Global Data (all users/regions)',
+        Permission.manageAgencies => 'Manage Agencies & Pharmacies (update, not create)',
+        Permission.manageTargets => 'Set Monthly Targets (for reporting-chain downline)',
       };
 }
 

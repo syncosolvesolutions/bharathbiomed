@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/product_repository.dart';
 import '../admin/admin_access.dart';
+import '../agencies/agency_controller.dart';
 import '../auth/auth_controller.dart';
 import '../doctors/doctor_controller.dart';
+import '../pharmacies/pharmacy_controller.dart';
 
 /// Holds the catalog (products + departments) currently shown on screen.
 final catalogControllerProvider = AsyncNotifierProvider<CatalogController, CatalogSnapshot>(CatalogController.new);
@@ -26,7 +28,7 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
     return ref.read(productRepositoryProvider).loadCachedCatalog();
   }
 
-  static const _totalSteps = 6;
+  static const _totalSteps = 11;
 
   /// Downloads the latest catalog from Firestore and overwrites the local
   /// cache, then pushes every locally-queued offline record (usage sessions,
@@ -93,6 +95,51 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
       await ref.read(doctorControllerProvider.notifier).sync();
     } catch (error) {
       debugPrint('CatalogController.sync: doctor sync failed error=$error');
+    }
+    completed++;
+
+    report('Uploading agency/pharmacy requests…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending entity change requests');
+      await ref.read(entityChangeRequestRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: entity change request uploadPending failed error=$error');
+    }
+    completed++;
+
+    report('Downloading agencies…');
+    try {
+      debugPrint('CatalogController.sync: syncing agencies');
+      await ref.read(agencyControllerProvider.notifier).sync();
+    } catch (error) {
+      debugPrint('CatalogController.sync: agency sync failed error=$error');
+    }
+    completed++;
+
+    report('Downloading pharmacies…');
+    try {
+      debugPrint('CatalogController.sync: syncing pharmacies');
+      await ref.read(pharmacyControllerProvider.notifier).sync();
+    } catch (error) {
+      debugPrint('CatalogController.sync: pharmacy sync failed error=$error');
+    }
+    completed++;
+
+    report('Uploading orders…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending orders');
+      await ref.read(orderRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: order uploadPending failed error=$error');
+    }
+    completed++;
+
+    report('Uploading RCPA entries…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending RCPA entries');
+      await ref.read(rcpaRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: RCPA uploadPending failed error=$error');
     }
     completed++;
 

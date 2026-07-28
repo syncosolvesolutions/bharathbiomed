@@ -41,7 +41,22 @@ class ProductRemoteDataSource {
       info: data['info'] as String? ?? '',
       departments: Map<String, int>.from(data['departments'] as Map? ?? {}),
       imageUrl: data['imageUrl'] as String? ?? '',
+      stockQuantity: (data['stockQuantity'] as num?)?.toInt() ?? 0,
+      unitPrice: (data['unitPrice'] as num?)?.toDouble() ?? 0,
     );
+  }
+
+  /// Adjusts a product's stock by [delta] (positive for stock received,
+  /// negative for a manual correction) — a Firestore-side atomic increment
+  /// so two concurrent adjustments (or a dispatch happening at the same
+  /// time) can never race and clobber each other the way a read-then-write
+  /// would. `dispatchOrder` (Cloud Function) uses the same increment
+  /// mechanism to decrement stock when an order ships.
+  Future<void> adjustStock(String productId, int delta) async {
+    debugPrint('ProductRemoteDataSource.adjustStock: productId=$productId delta=$delta');
+    await _firestore.collection('Products').doc(productId).update({
+      'stockQuantity': FieldValue.increment(delta),
+    });
   }
 
   Future<String> addProduct({
@@ -49,6 +64,7 @@ class ProductRemoteDataSource {
     required String info,
     required Map<String, int> departments,
     required String imageUrl,
+    double unitPrice = 0,
   }) async {
     debugPrint('ProductRemoteDataSource.addProduct: adding product name=$name');
     final docRef = await _firestore.collection('Products').add({
@@ -56,6 +72,7 @@ class ProductRemoteDataSource {
       'info': info,
       'departments': departments,
       'imageUrl': imageUrl,
+      'unitPrice': unitPrice,
     });
     debugPrint('ProductRemoteDataSource.addProduct: added product docId=${docRef.id}');
     return docRef.id;
@@ -68,6 +85,7 @@ class ProductRemoteDataSource {
       'info': product.info,
       'departments': product.departments,
       'imageUrl': product.imageUrl,
+      'unitPrice': product.unitPrice,
     });
     debugPrint('ProductRemoteDataSource.updateProduct: updated product docId=${product.id}');
   }

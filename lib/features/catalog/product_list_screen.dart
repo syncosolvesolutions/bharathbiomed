@@ -12,6 +12,7 @@ import '../auth/auth_controller.dart';
 import '../profile/birthday_celebration.dart';
 import '../profile/profile_controller.dart';
 import '../sync/sync_controller.dart';
+import '../team/team_access.dart';
 import 'catalog_controller.dart';
 import 'selection_controller.dart';
 import 'widgets/category_section.dart';
@@ -29,6 +30,14 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _syncCatalog() async {
     debugPrint('ProductListScreen._syncCatalog: sync button pressed');
 
@@ -145,6 +154,58 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             ),
           if (isSignedIn)
             IconButton(
+              icon: const Icon(Icons.add_business_outlined),
+              tooltip: 'Agencies',
+              onPressed: () => context.push('/agencies'),
+            ),
+          if (isSignedIn)
+            IconButton(
+              icon: const Icon(Icons.local_pharmacy_outlined),
+              tooltip: 'Pharmacies',
+              onPressed: () => context.push('/pharmacies'),
+            ),
+          if (isSignedIn && ref.watch(isOfficeAdminProvider))
+            IconButton(
+              icon: const Icon(Icons.fact_check_outlined),
+              tooltip: 'Agency / Pharmacy Requests',
+              onPressed: () => context.push('/entity-requests'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add_shopping_cart),
+              tooltip: 'My Orders',
+              onPressed: () => context.push('/orders'),
+            ),
+          if (isSignedIn && ref.watch(canViewInvoicesProvider))
+            IconButton(
+              icon: const Icon(Icons.receipt_long_outlined),
+              tooltip: 'Invoices',
+              onPressed: () => context.push('/invoices'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.track_changes_outlined),
+              tooltip: 'My Target',
+              onPressed: () => context.push('/targets'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.fact_check_outlined),
+              tooltip: 'RCPA Entries',
+              onPressed: () => context.push('/rcpa'),
+            ),
+          // Shown to every non-admin signed-in employee, not just designated
+          // managers — there's no cheap client-side way to know in advance
+          // whether someone has reports, and the screens behind this just
+          // show an empty state if they don't (see resolveVisibleEmployees).
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.groups_outlined),
+              tooltip: 'My Team',
+              onPressed: () => context.push('/team'),
+            ),
+          if (isSignedIn)
+            IconButton(
               icon: const Icon(Icons.person_outline),
               tooltip: 'Profile',
               onPressed: () => context.push('/account/profile'),
@@ -207,16 +268,46 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 ),
               );
             }
-            return ListView.builder(
-              itemCount: snapshot.departments.length,
-              itemBuilder: (context, index) {
-                final department = snapshot.departments[index];
-                final departmentProducts = snapshot.products
-                    .where((product) => product.departments.containsKey(department))
-                    .toList()
-                  ..sort((a, b) => a.positionIn(department).compareTo(b.positionIn(department)));
-                return CategorySection(category: department, products: departmentProducts);
-              },
+
+            final query = _searchController.text.trim().toLowerCase();
+            final departmentsWithProducts = snapshot.departments.map((department) {
+              final departmentProducts = snapshot.products
+                  .where((product) => product.departments.containsKey(department))
+                  .where((product) =>
+                      query.isEmpty ||
+                      product.name.toLowerCase().contains(query) ||
+                      product.info.toLowerCase().contains(query))
+                  .toList()
+                ..sort((a, b) => a.positionIn(department).compareTo(b.positionIn(department)));
+              return (department: department, products: departmentProducts);
+            }).where((entry) => entry.products.isNotEmpty).toList();
+
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: const InputDecoration(
+                      labelText: 'Search products',
+                      prefixIcon: Icon(Icons.search),
+                      isDense: true,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                Expanded(
+                  child: departmentsWithProducts.isEmpty
+                      ? const Center(child: Text('No products match this search.'))
+                      : ListView.builder(
+                          itemCount: departmentsWithProducts.length,
+                          itemBuilder: (context, index) {
+                            final entry = departmentsWithProducts[index];
+                            return CategorySection(category: entry.department, products: entry.products);
+                          },
+                        ),
+                ),
+              ],
             );
           },
         ),

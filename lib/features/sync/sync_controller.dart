@@ -70,11 +70,16 @@ class SyncController extends Notifier<SyncState> {
       final remoteChanged = await Future.wait<bool>([
         ref.read(productRepositoryProvider).hasRemoteChanges(),
         ref.read(doctorRepositoryProvider).hasRemoteChanges(mrUid: mrUid),
+        ref.read(agencyRepositoryProvider).hasRemoteChanges(),
+        ref.read(pharmacyRepositoryProvider).hasRemoteChanges(),
       ]);
       final pendingCounts = await Future.wait<int>([
         ref.read(usageSessionRepositoryProvider).countPendingUpload(),
         ref.read(doctorChangeRequestRepositoryProvider).countPendingUpload(),
         ref.read(doctorVisitLogRepositoryProvider).countPendingUpload(),
+        ref.read(entityChangeRequestRepositoryProvider).countPendingUpload(),
+        ref.read(orderRepositoryProvider).countPendingUpload(),
+        ref.read(rcpaRepositoryProvider).countPendingUpload(),
         if (mrUid != null)
           ref.read(doctorVisitPlanRepositoryProvider).hasPendingUpload(mrUid).then((has) => has ? 1 : 0),
       ]);

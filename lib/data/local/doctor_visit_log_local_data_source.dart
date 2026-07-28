@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -28,6 +30,7 @@ class DoctorVisitLogLocalDataSource {
         'latitude': log.latitude,
         'longitude': log.longitude,
         'createdAt': log.createdAt.millisecondsSinceEpoch,
+        'samplesGiven': jsonEncode(log.samplesGiven),
         'synced': 0,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
@@ -75,6 +78,9 @@ class DoctorVisitLogLocalDataSource {
       latitude: row['latitude'] as double?,
       longitude: row['longitude'] as double?,
       createdAt: DateTime.fromMillisecondsSinceEpoch(row['createdAt'] as int),
+      samplesGiven: row['samplesGiven'] == null
+          ? const {}
+          : Map<String, int>.from(jsonDecode(row['samplesGiven'] as String) as Map),
     );
   }
 }

@@ -117,9 +117,16 @@ class ProductRepository {
     required String info,
     required Map<String, int> departments,
     required String imageUrl,
+    double unitPrice = 0,
   }) {
     debugPrint('ProductRepository.createProduct: creating product name=$name');
-    return _remote.addProduct(name: name, info: info, departments: departments, imageUrl: imageUrl);
+    return _remote.addProduct(
+      name: name,
+      info: info,
+      departments: departments,
+      imageUrl: imageUrl,
+      unitPrice: unitPrice,
+    );
   }
 
   Future<void> updateProduct(Product product) {
@@ -130,6 +137,13 @@ class ProductRepository {
   Future<void> deleteProduct(String id) {
     debugPrint('ProductRepository.deleteProduct: deleting product id=$id');
     return _remote.deleteProduct(id);
+  }
+
+  /// Adjusts a product's stock level — see
+  /// [ProductRemoteDataSource.adjustStock].
+  Future<void> adjustStock(String productId, int delta) {
+    debugPrint('ProductRepository.adjustStock: productId=$productId delta=$delta');
+    return _remote.adjustStock(productId, delta);
   }
 
   Future<void> addDepartment(String name) async {

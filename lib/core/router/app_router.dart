@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/providers.dart';
+import '../../domain/models/agency.dart';
 import '../../domain/models/designation.dart';
 import '../../domain/models/doctor.dart';
 import '../../domain/models/employee.dart';
+import '../../domain/models/pharmacy.dart';
 import '../../domain/models/product.dart';
 import '../../features/admin/admin_home_screen.dart';
 import '../../features/admin/admin_notifications_screen.dart';
@@ -18,6 +20,7 @@ import '../../features/admin/employee_sessions_screen.dart';
 import '../../features/admin/manage_departments_screen.dart';
 import '../../features/admin/manage_designations_screen.dart';
 import '../../features/admin/manage_employees_screen.dart';
+import '../../features/admin/manage_inventory_screen.dart';
 import '../../features/admin/product_form_screen.dart';
 import '../../features/admin/usage_dashboard_screen.dart';
 import '../../features/auth/auth_controller.dart';
@@ -29,13 +32,32 @@ import '../../features/doctors/doctor_form_screen.dart';
 import '../../features/doctors/mr_doctors_screen.dart';
 import '../../features/doctors/today_visits_screen.dart';
 import '../../features/doctors/visit_plan_screen.dart';
+import '../../features/entity_requests/entity_requests_screen.dart';
 import '../../features/legal/legal_content.dart';
 import '../../features/legal/legal_document_screen.dart';
+import '../../features/agencies/agencies_screen.dart';
+import '../../features/agencies/agency_form_screen.dart';
+import '../../features/orders/invoices_screen.dart';
+import '../../features/orders/my_orders_screen.dart';
+import '../../features/orders/order_approval_screen.dart';
+import '../../features/orders/order_form_screen.dart';
+import '../../features/pharmacies/pharmacies_screen.dart';
+import '../../features/pharmacies/pharmacy_form_screen.dart';
 import '../../features/profile/complete_profile_screen.dart';
 import '../../features/profile/profile_controller.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/rcpa/rcpa_form_screen.dart';
+import '../../features/rcpa/rcpa_list_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/slideshow/slideshow_screen.dart';
+import '../../features/targets/my_target_screen.dart';
+import '../../features/targets/set_target_screen.dart';
+import '../../features/targets/team_targets_screen.dart';
+import '../../features/team/employee_rcpa_entries_screen.dart';
+import '../../features/team/employee_visit_logs_screen.dart';
+import '../../features/team/rcpa_dashboard_screen.dart';
+import '../../features/team/team_home_screen.dart';
+import '../../features/team/visit_log_dashboard_screen.dart';
 import '../auth/admin_access.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -102,6 +124,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Product) return '/admin';
         case '/admin/dashboard/sessions':
           if (state.extra is! Employee) return '/admin/dashboard';
+        case '/team/usage/sessions':
+          if (state.extra is! Employee) return '/team/usage';
+        case '/team/visit-logs/detail':
+          if (state.extra is! Employee) return '/team/visit-logs';
         case '/doctors/edit':
           if (state.extra is! Doctor) return '/doctors';
         case '/doctors/detail':
@@ -110,6 +136,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Doctor) return '/admin/doctors';
         case '/admin/designations/edit':
           if (state.extra is! Designation) return '/admin/designations';
+        case '/agencies/edit':
+          if (state.extra is! Agency) return '/agencies';
+        case '/pharmacies/edit':
+          if (state.extra is! Pharmacy) return '/pharmacies';
+        case '/team/rcpa/detail':
+          if (state.extra is! Employee) return '/team/rcpa';
       }
 
       return null;
@@ -178,10 +210,68 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/admin/products/edit',
         builder: (context, state) => ProductFormScreen(product: state.extra as Product),
       ),
+      GoRoute(path: '/admin/inventory', builder: (context, state) => const ManageInventoryScreen()),
       GoRoute(path: '/admin/dashboard', builder: (context, state) => const UsageDashboardScreen()),
       GoRoute(
         path: '/admin/dashboard/sessions',
         builder: (context, state) => EmployeeSessionsScreen(employee: state.extra as Employee),
+      ),
+      // Not under /admin — reachable by any signed-in employee. Scoped
+      // internally to the caller's own reporting-chain downline (or, for a
+      // view_global_data holder including the admin, everyone) — see
+      // resolveVisibleEmployees in features/team/team_access.dart.
+      GoRoute(path: '/team', builder: (context, state) => const TeamHomeScreen()),
+      GoRoute(path: '/team/usage', builder: (context, state) => const UsageDashboardScreen()),
+      GoRoute(
+        path: '/team/usage/sessions',
+        builder: (context, state) => EmployeeSessionsScreen(employee: state.extra as Employee),
+      ),
+      GoRoute(path: '/team/visit-logs', builder: (context, state) => const VisitLogDashboardScreen()),
+      GoRoute(
+        path: '/team/visit-logs/detail',
+        builder: (context, state) => EmployeeVisitLogsScreen(employee: state.extra as Employee),
+      ),
+      // Agencies/pharmacies: readable by any signed-in user (not admin-
+      // gated) — create is Office-Admin-only, update is
+      // canManageAgenciesProvider-gated, both enforced in-screen and by
+      // firestore.rules, not by route gating.
+      GoRoute(path: '/agencies', builder: (context, state) => const AgenciesScreen()),
+      GoRoute(path: '/agencies/add', builder: (context, state) => const AgencyFormScreen()),
+      GoRoute(
+        path: '/agencies/edit',
+        builder: (context, state) => AgencyFormScreen(agency: state.extra as Agency),
+      ),
+      GoRoute(path: '/pharmacies', builder: (context, state) => const PharmaciesScreen()),
+      GoRoute(path: '/pharmacies/add', builder: (context, state) => const PharmacyFormScreen()),
+      GoRoute(
+        path: '/pharmacies/edit',
+        builder: (context, state) => PharmacyFormScreen(pharmacy: state.extra as Pharmacy),
+      ),
+      GoRoute(path: '/entity-requests', builder: (context, state) => const EntityRequestsScreen()),
+      // Orders: an MR's own place-order flow, plus the team workflow queue
+      // (approve/reject/dispatch/invoice) — not admin-gated, same reasoning
+      // as /team/* (scoped in-screen by permission + reporting chain).
+      GoRoute(path: '/orders', builder: (context, state) => const MyOrdersScreen()),
+      GoRoute(path: '/orders/add', builder: (context, state) => const OrderFormScreen()),
+      GoRoute(path: '/team/orders', builder: (context, state) => const OrderApprovalScreen()),
+      GoRoute(path: '/invoices', builder: (context, state) => const InvoicesScreen()),
+      // Targets: an MR's own current-month target vs. achievement, plus the
+      // team view + set-target action for an RM-or-above (not admin-gated,
+      // same reasoning as /team/*).
+      GoRoute(path: '/targets', builder: (context, state) => const MyTargetScreen()),
+      GoRoute(
+        path: '/targets/set',
+        builder: (context, state) => SetTargetScreen(initialEmployee: state.extra as Employee?),
+      ),
+      GoRoute(path: '/team/targets', builder: (context, state) => const TeamTargetsScreen()),
+      // RCPA: an MR's own logged entries + form, plus the team dashboard
+      // (not admin-gated, same reasoning as /team/*).
+      GoRoute(path: '/rcpa', builder: (context, state) => const RcpaListScreen()),
+      GoRoute(path: '/rcpa/add', builder: (context, state) => const RcpaFormScreen()),
+      GoRoute(path: '/team/rcpa', builder: (context, state) => const RcpaDashboardScreen()),
+      GoRoute(
+        path: '/team/rcpa/detail',
+        builder: (context, state) => EmployeeRcpaEntriesScreen(employee: state.extra as Employee),
       ),
     ],
   );

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers.dart';
 import '../../domain/models/employee.dart';
 import '../../domain/models/usage_session.dart';
+import '../team/team_access.dart';
 
 class EmployeeUsageSummary {
   const EmployeeUsageSummary({
@@ -36,17 +37,22 @@ final usageDashboardControllerProvider =
     AsyncNotifierProvider<UsageDashboardController, UsageDashboardData>(UsageDashboardController.new);
 
 /// Joins employee profiles with their uploaded usage sessions (both fetched
-/// live from Firestore — this is an admin-only view of current server data,
-/// same reasoning as AdminCatalogController) into per-employee summaries for
-/// the dashboard, plus the full per-employee session list for drill-down.
+/// live from Firestore) into per-employee summaries for the dashboard, plus
+/// the full per-employee session list for drill-down. Reachable by the
+/// admin (sees everyone) and by any manager (sees just their own reporting
+/// downline) — see [resolveVisibleEmployees].
 class UsageDashboardController extends AsyncNotifier<UsageDashboardData> {
   @override
   Future<UsageDashboardData> build() async {
-    debugPrint('UsageDashboardController.build: fetching employees');
-    final employees = await ref.read(employeeRepositoryProvider).fetchAll();
-    debugPrint('UsageDashboardController.build: fetched ${employees.length} employees');
-    debugPrint('UsageDashboardController.build: fetching recent usage sessions');
-    final sessions = await ref.read(usageSessionRepositoryProvider).fetchRecentForDashboard();
+    debugPrint('UsageDashboardController.build: resolving visible employees');
+    final employees = await resolveVisibleEmployees(ref);
+    debugPrint('UsageDashboardController.build: resolved ${employees.length} employees');
+
+    final isGlobal = ref.read(hasGlobalVisibilityProvider);
+    debugPrint('UsageDashboardController.build: fetching recent usage sessions isGlobal=$isGlobal');
+    final sessions = isGlobal
+        ? await ref.read(usageSessionRepositoryProvider).fetchRecentForDashboard()
+        : await ref.read(usageSessionRepositoryProvider).fetchRecentForEmployees(employees.map((e) => e.uid).toList());
     debugPrint('UsageDashboardController.build: fetched ${sessions.length} sessions');
 
     final sessionsByEmployee = <String, List<UsageSession>>{};

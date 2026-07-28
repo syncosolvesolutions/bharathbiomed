@@ -19,6 +19,13 @@ class DoctorVisitLog extends Equatable {
   final double? longitude;
   final DateTime createdAt;
 
+  /// Product/sample name -> quantity given during this visit — physician
+  /// samples and promotional material handed out, tracked alongside the
+  /// visit itself rather than as a separate feature, since samples are
+  /// given during a visit in practice. Empty for a visit where nothing was
+  /// given.
+  final Map<String, int> samplesGiven;
+
   const DoctorVisitLog({
     required this.id,
     required this.mrUid,
@@ -30,9 +37,10 @@ class DoctorVisitLog extends Equatable {
     this.latitude,
     this.longitude,
     required this.createdAt,
+    this.samplesGiven = const {},
   });
 
   @override
   List<Object?> get props =>
-      [id, mrUid, doctorId, doctorName, visitDate, visited, feedback, latitude, longitude, createdAt];
+      [id, mrUid, doctorId, doctorName, visitDate, visited, feedback, latitude, longitude, createdAt, samplesGiven];
 }

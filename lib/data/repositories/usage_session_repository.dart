@@ -72,4 +72,11 @@ class UsageSessionRepository {
     debugPrint('UsageSessionRepository.fetchRecentForDashboard: fetching recent sessions for dashboard');
     return _remote.fetchRecent();
   }
+
+  /// For a manager without global visibility — see
+  /// [UsageSessionRemoteDataSource.fetchRecentForEmployees].
+  Future<List<UsageSession>> fetchRecentForEmployees(List<String> employeeUids) {
+    debugPrint('UsageSessionRepository.fetchRecentForEmployees: employeeUids=${employeeUids.length}');
+    return _remote.fetchRecentForEmployees(employeeUids);
+  }
 }

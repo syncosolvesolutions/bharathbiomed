@@ -26,6 +26,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final _nameController = TextEditingController(text: widget.product?.name);
   late final _infoController = TextEditingController(text: widget.product?.info);
+  late final _unitPriceController =
+      TextEditingController(text: widget.product == null ? '' : widget.product!.unitPrice.toString());
   late final Map<String, int> _positions = Map.of(widget.product?.departments ?? {});
   late String? _imageUrl = widget.product?.imageUrl;
   bool _saving = false;
@@ -37,6 +39,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     debugPrint('ProductFormScreen.dispose: disposing');
     _nameController.dispose();
     _infoController.dispose();
+    _unitPriceController.dispose();
     super.dispose();
   }
 
@@ -55,6 +58,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
     setState(() => _saving = true);
     final validDepartments = Map.of(_positions)..removeWhere((_, position) => position <= 0);
+    final unitPrice = double.tryParse(_unitPriceController.text.trim()) ?? 0;
 
     try {
       final controller = ref.read(adminCatalogControllerProvider.notifier);
@@ -66,6 +70,8 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           info: _infoController.text.trim(),
           departments: validDepartments,
           imageUrl: _imageUrl!,
+          stockQuantity: widget.product!.stockQuantity,
+          unitPrice: unitPrice,
         ));
         debugPrint('ProductFormScreen._save: updateProduct succeeded id=${widget.product!.id}');
       } else {
@@ -75,6 +81,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           info: _infoController.text.trim(),
           departments: validDepartments,
           imageUrl: _imageUrl!,
+          unitPrice: unitPrice,
         );
         debugPrint('ProductFormScreen._save: createProduct succeeded name=${_nameController.text.trim()}');
       }
@@ -127,6 +134,15 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 decoration: const InputDecoration(labelText: 'Product Info'),
                 maxLines: 3,
                 validator: (value) => value == null || value.trim().isEmpty ? 'Please enter product info' : null,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _unitPriceController,
+                decoration: const InputDecoration(
+                  labelText: 'Unit Price (optional)',
+                  helperText: 'Prefills the price when an MR places an order for this product.',
+                ),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
               ),
               const SizedBox(height: 16),
               PhotoPickerField(

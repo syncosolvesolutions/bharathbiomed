@@ -7,7 +7,7 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
-import {requireAdmin, usernameToEmail} from "./adminAccess";
+import {requireAdmin, requireOfficeAdmin, requirePermission, usernameToEmail} from "./adminAccess";
 
 export {onUserOrgChanged, onDesignationOrgChanged} from "./hierarchy";
 
@@ -823,6 +823,91 @@ export const reviewDoctorChangeRequest = onCall(async (request) => {
   return {success: true};
 });
 
+interface ReviewEntityChangeRequestRequest {
+  requestId: string;
+  approve: boolean;
+  reviewNote?: string;
+}
+
+/**
+ * Office-Admin-only (see [requireOfficeAdmin] — deliberately not
+ * [requireAdmin], since agencies/pharmacies aren't limited to the hardcoded
+ * admin allowlist): approves or rejects an MR's proposed new agency/
+ * pharmacy (see EntityChangeRequests in firestore.rules). Approving writes a
+ * new `Agencies`/`Pharmacies` doc from `proposedData`, keyed on
+ * `entityType`. Mirrors [reviewDoctorChangeRequest] — the requesting MR is
+ * pushed a notification once this resolves.
+ */
+export const reviewEntityChangeRequest = onCall(async (request) => {
+  logger.info("reviewEntityChangeRequest: called", {
+    requestId: (request.data as Partial<ReviewEntityChangeRequestRequest>)?.requestId,
+    approve: (request.data as Partial<ReviewEntityChangeRequestRequest>)?.approve,
+  });
+  const reviewerUid = await requireOfficeAdmin(request);
+
+  const data = request.data as Partial<ReviewEntityChangeRequestRequest>;
+  const requestId = data.requestId ?? "";
+  const approve = data.approve;
+  const reviewNote = data.reviewNote?.trim() || null;
+
+  if (!requestId) {
+    throw new HttpsError("invalid-argument", "requestId is required.");
+  }
+  if (typeof approve !== "boolean") {
+    throw new HttpsError("invalid-argument", "approve must be a boolean.");
+  }
+
+  const firestore = getFirestore();
+  const requestRef = firestore.collection("EntityChangeRequests").doc(requestId);
+  const requestDoc = await requestRef.get();
+  if (!requestDoc.exists) {
+    throw new HttpsError("not-found", "That request no longer exists.");
+  }
+  const requestData = requestDoc.data()!;
+  if (requestData.status !== "pending") {
+    throw new HttpsError("failed-precondition", "That request has already been reviewed.");
+  }
+
+  const proposedData = (requestData.proposedData ?? {}) as Record<string, unknown>;
+  const entityType = requestData.entityType as string;
+  const collectionName = entityType === "pharmacy" ? "Pharmacies" : "Agencies";
+
+  if (approve) {
+    logger.info("reviewEntityChangeRequest: approving", {requestId, entityType});
+    await firestore.collection(collectionName).add({
+      ...proposedData,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  await requestRef.update({
+    status: approve ? "approved" : "rejected",
+    reviewNote,
+    reviewedByUid: reviewerUid,
+    reviewedAt: FieldValue.serverTimestamp(),
+  });
+
+  const requestedByUid = requestData.requestedByUid as string | undefined;
+  const entityName = (proposedData.name as string | undefined) || "A new entry";
+  const entityLabel = entityType === "pharmacy" ? "pharmacy" : "agency";
+  if (requestedByUid) {
+    await sendPushToUser(
+      requestedByUid,
+      {
+        title: approve ? "Request approved" : "Request rejected",
+        body: approve
+          ? `Your proposed ${entityLabel} "${entityName}" was approved.`
+          : `Your proposed ${entityLabel} "${entityName}" was rejected.${reviewNote ? " " + reviewNote : ""}`,
+      },
+      {type: "entity_request_reviewed", requestId, approved: String(approve)}
+    );
+  }
+
+  logger.info("reviewEntityChangeRequest: succeeded", {requestId, approve});
+  return {success: true};
+});
+
 /**
  * Notifies the admin (via the existing AdminNotifications bell + push topic
  * — see onEmployeeDobChanged above) whenever an MR submits a new doctor
@@ -899,4 +984,111 @@ export const sendDueReminders = onSchedule("every 15 minutes", async () => {
     await doc.ref.update({notified: true});
   }
   logger.info("sendDueReminders: finished", {count: due.length});
+});
+
+interface DispatchOrderRequest {
+  orderId: string;
+}
+
+/**
+ * `dispatch_orders`-gated: verifies the order is `approved`, decrements each
+ * item's product stock (an atomic `FieldValue.increment` inside the same
+ * transaction as the order's status flip, so a retried/duplicate call can
+ * never double-decrement), and marks the order `dispatched`. Deliberately
+ * does not block on insufficient stock — a negative `stockQuantity` is a
+ * signal to reorder, not a hard error here.
+ */
+export const dispatchOrder = onCall(async (request) => {
+  logger.info("dispatchOrder: called", {orderId: (request.data as Partial<DispatchOrderRequest>)?.orderId});
+  await requirePermission(request, "dispatch_orders");
+
+  const orderId = (request.data as Partial<DispatchOrderRequest>)?.orderId ?? "";
+  if (!orderId) {
+    throw new HttpsError("invalid-argument", "orderId is required.");
+  }
+
+  const firestore = getFirestore();
+  const orderRef = firestore.collection("Orders").doc(orderId);
+
+  await firestore.runTransaction(async (transaction) => {
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists) {
+      throw new HttpsError("not-found", "That order no longer exists.");
+    }
+    const order = orderDoc.data()!;
+    if (order.status !== "approved") {
+      throw new HttpsError("failed-precondition", "Only an approved order can be dispatched.");
+    }
+
+    const items = (order.items ?? []) as Array<{productId?: string; quantity?: number}>;
+    for (const item of items) {
+      if (!item.productId || !item.quantity) continue;
+      const productRef = firestore.collection("Products").doc(item.productId);
+      transaction.update(productRef, {stockQuantity: FieldValue.increment(-item.quantity)});
+    }
+
+    transaction.update(orderRef, {
+      status: "dispatched",
+      dispatchedByUid: request.auth!.uid,
+      dispatchedAt: FieldValue.serverTimestamp(),
+    });
+  });
+
+  logger.info("dispatchOrder: succeeded", {orderId});
+  return {success: true};
+});
+
+interface GenerateInvoiceRequest {
+  orderId: string;
+}
+
+/**
+ * `manage_invoices`-gated: verifies the order is `dispatched`, assigns the
+ * next sequential invoice number via a race-safe counter doc
+ * (`Counters/invoiceNumber`), writes the `Invoices` doc, and marks the order
+ * `invoiced` — all in one transaction so a retried/duplicate call can never
+ * generate two invoices for the same order or skip/reuse a number.
+ */
+export const generateInvoice = onCall(async (request) => {
+  logger.info("generateInvoice: called", {orderId: (request.data as Partial<GenerateInvoiceRequest>)?.orderId});
+  await requirePermission(request, "manage_invoices");
+
+  const orderId = (request.data as Partial<GenerateInvoiceRequest>)?.orderId ?? "";
+  if (!orderId) {
+    throw new HttpsError("invalid-argument", "orderId is required.");
+  }
+
+  const firestore = getFirestore();
+  const orderRef = firestore.collection("Orders").doc(orderId);
+  const counterRef = firestore.collection("Counters").doc("invoiceNumber");
+  const invoiceRef = firestore.collection("Invoices").doc();
+
+  await firestore.runTransaction(async (transaction) => {
+    const [orderDoc, counterDoc] = await Promise.all([transaction.get(orderRef), transaction.get(counterRef)]);
+    if (!orderDoc.exists) {
+      throw new HttpsError("not-found", "That order no longer exists.");
+    }
+    const order = orderDoc.data()!;
+    if (order.status !== "dispatched") {
+      throw new HttpsError("failed-precondition", "Only a dispatched order can be invoiced.");
+    }
+
+    const nextNumber = ((counterDoc.data()?.value as number | undefined) ?? 0) + 1;
+    const invoiceNumber = `INV-${String(nextNumber).padStart(6, "0")}`;
+
+    transaction.set(counterRef, {value: nextNumber});
+    transaction.set(invoiceRef, {
+      orderId,
+      invoiceNumber,
+      agencyId: order.agencyId,
+      agencyName: order.agencyName,
+      items: order.items,
+      totalValue: order.totalValue,
+      issuedAt: FieldValue.serverTimestamp(),
+    });
+    transaction.update(orderRef, {status: "invoiced", invoiceId: invoiceRef.id});
+  });
+
+  logger.info("generateInvoice: succeeded", {orderId});
+  return {success: true};
 });

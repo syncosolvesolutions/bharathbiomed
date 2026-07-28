@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/utils/date_of_birth.dart';
 import '../../domain/models/doctor.dart';
 import '../admin/admin_access.dart';
+import '../pharmacies/pharmacy_controller.dart';
 import 'visit_log_dialog.dart';
 
 class DoctorDetailScreen extends ConsumerWidget {
@@ -118,6 +119,29 @@ class DoctorDetailScreen extends ConsumerWidget {
               title: Text(formatIsoForDisplay(doctor.marriageAnniversary)),
               subtitle: const Text('Marriage Anniversary'),
             ),
+          ref.watch(pharmacyControllerProvider).maybeWhen(
+                data: (pharmacies) {
+                  final linked = pharmacies.where((pharmacy) => pharmacy.linkedDoctorIds.contains(doctor.id)).toList();
+                  if (linked.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Linked Pharmacies', style: Theme.of(context).textTheme.titleSmall),
+                        const SizedBox(height: 4),
+                        ...linked.map((pharmacy) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.local_pharmacy_outlined),
+                              title: Text(pharmacy.name),
+                              subtitle: pharmacy.address == null ? null : Text(pharmacy.address!),
+                            )),
+                      ],
+                    ),
+                  );
+                },
+                orElse: () => const SizedBox.shrink(),
+              ),
           if (!isAdmin) ...[
             const SizedBox(height: 16),
             ElevatedButton.icon(

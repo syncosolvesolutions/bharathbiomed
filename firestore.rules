@@ -25,18 +25,52 @@ service cloud.firestore {
     // Order/Invoice-style visibility, not access to the admin panel. Reads
     // the caller's own denormalized `permissions` (copied from their
     // assigned designation onto their Users doc by the hierarchy trigger).
-    function hasGlobalVisibility() {
+    function hasPermission(name) {
       return isSignedIn() &&
-        get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.get('permissions', []).hasAny(['view_global_data']);
+        get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.get('permissions', []).hasAny([name]);
+    }
+
+    function hasGlobalVisibility() {
+      return hasPermission('view_global_data');
+    }
+
+    // "Office Admin": the hardcoded admin allowlist, or a real designation
+    // whose denormalized category is office_administration (see
+    // Designation/DesignationCategory). Gates agency/pharmacy
+    // create+deactivate and EntityChangeRequest review — deliberately not
+    // the same thing as isAdmin(), since the business wants any Office
+    // Administration designation to have this, not just the two allowlisted
+    // emails.
+    function isOfficeAdmin() {
+      return isAdmin() ||
+        (isSignedIn() &&
+          get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.get('category', '') == 'office_administration');
+    }
+
+    // Whether the caller is somewhere in employeeUid's reporting chain (i.e.
+    // a manager reading someone in their own downline) — same relationship
+    // already used by the Users/{uid} rule below, reused here so a manager's
+    // "my team" screens (usage/location, visit logs) work without needing
+    // isAdmin() or view_global_data.
+    function isInDownlineOf(employeeUid) {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/Users/$(employeeUid)).data.get('reportingChainUids', []).hasAny([request.auth.uid]);
     }
 
     // Catalog data: every signed-in user (reps and admin alike) can read it
     // to sync their device; only the admin can write it directly. Sales
     // reps go through Cloud Functions for nothing here — direct writes from
     // the admin app are fine since only the admin account can perform them.
+    // The one exception is stock adjustment (ManageInventoryScreen): an
+    // Office Admin may update *only* stockQuantity, a narrower path than
+    // full product edit — everything else (name/info/departments/image)
+    // stays admin-only. dispatchOrder's own stockQuantity decrement uses
+    // the Admin SDK and bypasses these rules entirely.
     match /Products/{productId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+      allow update: if isOfficeAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQuantity']);
     }
 
     match /Department/{departmentDoc} {
@@ -95,11 +129,12 @@ service cloud.firestore {
     // reporting their own usage, not a privileged operation), but only ever
     // about themselves: the doc's employeeUid must match the caller's own
     // uid, so a compromised client can't write a session claiming to be
-    // someone else. Only the admin can read the log; nobody can update
+    // someone else. The admin, a view_global_data holder, or this employee's
+    // own manager can read the log; nobody can update
     // (beyond the one retry-safe overwrite of their own doc) or delete it —
     // this is meant to be an append-only record.
     match /UsageSessions/{sessionId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasGlobalVisibility() || isInDownlineOf(resource.data.employeeUid);
       allow create: if isSignedIn() && request.resource.data.employeeUid == request.auth.uid;
       // The app never actually rewrites an existing session doc once it's
       // synced (see UsageSessionRepository.uploadPending), but the rule
@@ -149,7 +184,16 @@ service cloud.firestore {
     // Append-only daily "who I visited today and how it went" records —
     // same shape/rules as UsageSessions above.
     match /DoctorVisitLogs/{logId} {
-      allow read: if isAdmin();
+      allow read: if isAdmin() || hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid);
+      allow create: if isSignedIn() && request.resource.data.mrUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Retail Chemist Prescription Audit entries — same shape/rules as
+    // DoctorVisitLogs above (append-only, admin/global/downline read, own-
+    // mrUid create only).
+    match /RcpaEntries/{entryId} {
+      allow read: if isAdmin() || hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid);
       allow create: if isSignedIn() && request.resource.data.mrUid == request.auth.uid;
       allow update, delete: if false;
     }
@@ -164,6 +208,92 @@ service cloud.firestore {
         && request.resource.data.createdByUid == request.auth.uid
         && (isAdmin() || request.resource.data.ownerUid == request.auth.uid);
       allow update, delete: if isAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+    }
+
+    // Distributors/stockists. Every signed-in user can read (both agency
+    // list screens and MR order-booking need the full list); only an Office
+    // Admin can create outright or deactivate; updating is also open to
+    // anyone holding manage_agencies. An MR's proposed new agency instead
+    // goes through EntityChangeRequests, applied here only by the
+    // reviewEntityChangeRequest Cloud Function.
+    match /Agencies/{agencyId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isOfficeAdmin();
+      allow update: if isOfficeAdmin() || hasPermission('manage_agencies');
+    }
+
+    // Pharmacies/chemists — identical shape to Agencies above.
+    match /Pharmacies/{pharmacyId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isOfficeAdmin();
+      allow update: if isOfficeAdmin() || hasPermission('manage_agencies');
+    }
+
+    // An MR's proposed new agency/pharmacy, awaiting Office Admin approval —
+    // same shape as DoctorChangeRequests above, just reviewed by
+    // isOfficeAdmin() instead of isAdmin() since agencies/pharmacies aren't
+    // gated to the hardcoded admin allowlist the way Doctors is.
+    match /EntityChangeRequests/{requestId} {
+      allow read: if isOfficeAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.requestedByUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
+    // An MR-placed order against an Agency. Created directly by the MR
+    // (low-privilege — only their own createdByUid, must start `pending`).
+    // Approve/reject is also a direct write, but gated to approve_orders +
+    // (global visibility or being somewhere in the creator's reporting
+    // chain), restricted to only touch the review fields, and only while
+    // still pending (so it can't be replayed or used to un-approve/
+    // un-reject after the fact). Dispatch (stock decrement) and invoice
+    // generation always go through their Cloud Functions — see
+    // dispatchOrder/generateInvoice — which use the Admin SDK and bypass
+    // these rules, so there's no client update path to either status here.
+    match /Orders/{orderId} {
+      allow read: if isAdmin()
+        || hasGlobalVisibility()
+        || resource.data.createdByUid == request.auth.uid
+        || isInDownlineOf(resource.data.createdByUid);
+      allow create: if isSignedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && hasPermission('approve_orders')
+        && (hasGlobalVisibility() || isInDownlineOf(resource.data.createdByUid))
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
+      allow delete: if false;
+    }
+
+    // Generated only by generateInvoice (Cloud Function, Admin SDK) —
+    // nobody ever writes here directly. Read access mirrors who could ever
+    // plausibly need to see one: the admin, a view_global_data holder, or
+    // whoever holds manage_invoices.
+    match /Invoices/{invoiceId} {
+      allow read: if isAdmin() || hasGlobalVisibility() || hasPermission('manage_invoices');
+      allow write: if false;
+    }
+
+    // A monthly order-value target an RM-or-above sets for one of their
+    // reporting-chain downline. Doc id is `{employeeUid}_{period}` (an
+    // upsert key, not enforced here). The employee it's for may always read
+    // their own; creating/updating requires manage_targets (or global
+    // visibility/admin) AND the target employee being in the caller's own
+    // downline — a manager can't set a target for someone outside their
+    // chain even if they hold the permission.
+    match /SalesTargets/{targetId} {
+      allow read: if isAdmin()
+        || hasGlobalVisibility()
+        || hasPermission('manage_targets')
+        || (isSignedIn() && resource.data.employeeUid == request.auth.uid);
+      allow create, update: if isSignedIn()
+        && (isAdmin() || hasGlobalVisibility() || hasPermission('manage_targets'))
+        && (isAdmin() || hasGlobalVisibility() || isInDownlineOf(request.resource.data.employeeUid));
+      allow delete: if false;
     }
 
     // This device's current FCM token, used by Cloud Functions to target a
