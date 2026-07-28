@@ -24,16 +24,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
-  // For local testing only: uncomment the two lines below to pre-fill the
-  // test account, then re-comment (or discard the change) before committing.
-  // Real credentials must never land in a commit — git history keeps them
-  // forever, even after a later commit removes them again.
-  final _emailController = TextEditingController(
-    text: 'bharathbiomedpharma@gmail.com',
-  );
-  final _passwordController = TextEditingController(
-    text: 'Bharath@2024',
-  );
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _signInSectionExpanded = false;
 
