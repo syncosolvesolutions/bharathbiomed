@@ -82,6 +82,16 @@ class AdminHomeScreen extends ConsumerWidget {
             onPressed: () => context.push('/admin/employees'),
           ),
           IconButton(
+            icon: const Icon(Icons.local_hospital_outlined),
+            tooltip: 'Manage Doctors',
+            onPressed: () => context.push('/admin/doctors'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_alert_outlined),
+            tooltip: 'Reminders',
+            onPressed: () => context.push('/reminders'),
+          ),
+          IconButton(
             icon: const Icon(Icons.bar_chart),
             tooltip: 'Usage Dashboard',
             onPressed: () => context.push('/admin/dashboard'),

@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/providers.dart';
+import '../../domain/models/doctor.dart';
 import '../../domain/models/employee.dart';
 import '../../domain/models/product.dart';
 import '../../features/admin/admin_home_screen.dart';
 import '../../features/admin/admin_notifications_screen.dart';
 import '../../features/admin/department_products_screen.dart';
+import '../../features/admin/doctors/admin_doctors_screen.dart';
+import '../../features/admin/doctors/doctor_requests_screen.dart';
 import '../../features/admin/employee_form_screen.dart';
 import '../../features/admin/employee_sessions_screen.dart';
 import '../../features/admin/manage_departments_screen.dart';
@@ -19,9 +22,17 @@ import '../../features/auth/auth_controller.dart';
 import '../../features/auth/change_password_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/catalog/product_list_screen.dart';
+import '../../features/doctors/doctor_detail_screen.dart';
+import '../../features/doctors/doctor_form_screen.dart';
+import '../../features/doctors/mr_doctors_screen.dart';
+import '../../features/doctors/today_visits_screen.dart';
+import '../../features/doctors/visit_plan_screen.dart';
 import '../../features/legal/legal_content.dart';
 import '../../features/legal/legal_document_screen.dart';
+import '../../features/profile/complete_profile_screen.dart';
+import '../../features/profile/profile_controller.dart';
 import '../../features/profile/profile_screen.dart';
+import '../../features/reminders/reminders_screen.dart';
 import '../../features/slideshow/slideshow_screen.dart';
 import '../auth/admin_access.dart';
 
@@ -30,6 +41,11 @@ final routerProvider = Provider<GoRouter>((ref) {
   // Re-evaluate redirect whenever Firebase's auth state changes (e.g. on
   // launch with an existing session, or after sign-in/out).
   ref.listen(authStateChangesProvider, (previous, next) => refreshNotifier.ping());
+  // Also re-evaluate once the signed-in MR's own profile loads/changes —
+  // needed so `needsProfileCompletion` below reacts to profileCompleted
+  // flipping true right after the mandatory profile screen saves, without
+  // waiting for some unrelated auth event.
+  ref.listen(myEmployeeProfileProvider, (previous, next) => refreshNotifier.ping());
   ref.onDispose(refreshNotifier.dispose);
 
   return GoRouter(
@@ -54,8 +70,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       final onAdminRoute = state.matchedLocation.startsWith('/admin');
       if (onAdminRoute && !isAdminEmail(user?.email)) return '/catalog';
 
+      // Mandatory first-login profile completion (photo + name) for an MR
+      // account. Scoped to non-admin accounts only, and only once their
+      // `Users` doc has actually loaded — `employee == null` covers both
+      // "still loading" and "not an MR", so it never blocks on an unknown
+      // state. Accounts created before this field existed default to
+      // `profileCompleted: true` (see Employee.profileCompleted), so nobody
+      // already using the app gets retroactively blocked here.
+      final employee = ref.read(myEmployeeProfileProvider).value;
+      final needsProfileCompletion =
+          isLoggedIn && !isAdminEmail(user.email) && employee != null && !employee.profileCompleted;
+      const completeProfilePath = '/account/complete-profile';
+      if (needsProfileCompletion && state.matchedLocation != completeProfilePath) return completeProfilePath;
+      if (!needsProfileCompletion && state.matchedLocation == completeProfilePath) return '/catalog';
+
       // A few routes require data passed via `extra` (which product to show
-      // full-screen, which employee/product to edit). `extra` doesn't
+      // full-screen, which employee/product/doctor to edit). `extra` doesn't
       // survive process death — Android can kill the app and restore it to
       // its last route from the URL alone, with `extra` null. Redirect to a
       // safe parent screen instead of letting the builder's `as` cast crash.
@@ -70,6 +100,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Product) return '/admin';
         case '/admin/dashboard/sessions':
           if (state.extra is! Employee) return '/admin/dashboard';
+        case '/doctors/edit':
+          if (state.extra is! Doctor) return '/doctors';
+        case '/doctors/detail':
+          if (state.extra is! Doctor) return '/doctors';
+        case '/admin/doctors/edit':
+          if (state.extra is! Doctor) return '/admin/doctors';
       }
 
       return null;
@@ -79,6 +115,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/catalog', builder: (context, state) => const ProductListScreen()),
       GoRoute(path: '/account/change-password', builder: (context, state) => const ChangePasswordScreen()),
       GoRoute(path: '/account/profile', builder: (context, state) => const ProfileScreen()),
+      GoRoute(path: '/account/complete-profile', builder: (context, state) => const CompleteProfileScreen()),
+      GoRoute(path: '/doctors', builder: (context, state) => const MrDoctorsScreen()),
+      GoRoute(path: '/doctors/add', builder: (context, state) => const DoctorFormScreen()),
+      GoRoute(
+        path: '/doctors/edit',
+        builder: (context, state) => DoctorFormScreen(doctor: state.extra as Doctor),
+      ),
+      GoRoute(
+        path: '/doctors/detail',
+        builder: (context, state) => DoctorDetailScreen(doctor: state.extra as Doctor),
+      ),
+      GoRoute(path: '/doctors/plan', builder: (context, state) => const VisitPlanScreen()),
+      GoRoute(path: '/doctors/today', builder: (context, state) => const TodayVisitsScreen()),
+      GoRoute(path: '/reminders', builder: (context, state) => const RemindersScreen()),
       GoRoute(
         path: '/legal/terms',
         builder: (context, state) =>
@@ -102,6 +152,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/admin/designations', builder: (context, state) => const ManageDesignationsScreen()),
       GoRoute(path: '/admin/employees', builder: (context, state) => const ManageEmployeesScreen()),
       GoRoute(path: '/admin/notifications', builder: (context, state) => const AdminNotificationsScreen()),
+      GoRoute(path: '/admin/doctors', builder: (context, state) => const AdminDoctorsScreen()),
+      GoRoute(path: '/admin/doctors/add', builder: (context, state) => const DoctorFormScreen()),
+      GoRoute(
+        path: '/admin/doctors/edit',
+        builder: (context, state) => DoctorFormScreen(doctor: state.extra as Doctor),
+      ),
+      GoRoute(path: '/admin/doctors/requests', builder: (context, state) => const DoctorRequestsScreen()),
       GoRoute(path: '/admin/employees/add', builder: (context, state) => const EmployeeFormScreen()),
       GoRoute(
         path: '/admin/employees/edit',

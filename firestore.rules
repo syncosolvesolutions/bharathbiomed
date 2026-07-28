@@ -96,5 +96,64 @@ service cloud.firestore {
         && request.resource.data.longitude == resource.data.longitude;
       allow delete: if false;
     }
+
+    // Doctors an MR visits. Admin has full read/write (create/edit outright,
+    // assign/reassign an MR). An MR may only read the doctors currently
+    // assigned to them; they never write here directly — their proposed
+    // creates/edits go through DoctorChangeRequests instead and are only
+    // ever applied here by the reviewDoctorChangeRequest Cloud Function
+    // (Admin SDK, bypasses these rules) once approved.
+    match /Doctors/{doctorId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.assignedMrUid == request.auth.uid);
+      allow write: if isAdmin();
+    }
+
+    // An MR's proposed doctor create/edit, awaiting admin approval. The MR
+    // may create their own request and read it back; only the admin (via
+    // the reviewDoctorChangeRequest Cloud Function) may change its status
+    // or apply it, so client update/delete are both denied.
+    match /DoctorChangeRequests/{requestId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.requestedByUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if false;
+    }
+
+    // One doc per MR holding their recurring weekly visiting schedule. The
+    // MR edits their own; the admin can read/edit any MR's plan too (e.g.
+    // while reassigning doctors).
+    match /DoctorVisitPlans/{mrUid} {
+      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == mrUid);
+    }
+
+    // Append-only daily "who I visited today and how it went" records —
+    // same shape/rules as UsageSessions above.
+    match /DoctorVisitLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.mrUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Reminders for the admin or an MR. An MR may only ever create/own a
+    // reminder for themselves; the admin may create one for themselves or
+    // assign one to any MR. Marking one complete/deleting it is restricted
+    // to whoever owns it (or the admin).
+    match /Reminders/{reminderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.createdByUid == request.auth.uid
+        && (isAdmin() || request.resource.data.ownerUid == request.auth.uid);
+      allow update, delete: if isAdmin() || (isSignedIn() && resource.data.ownerUid == request.auth.uid);
+    }
+
+    // This device's current FCM token, used by Cloud Functions to target a
+    // push at one specific person (reminder-due, doctor-request-reviewed)
+    // rather than a broadcast topic. Each user may only ever write their own
+    // token; nobody reads it back client-side — only the Admin SDK does.
+    match /DeviceTokens/{uid} {
+      allow read: if false;
+      allow write: if isSignedIn() && request.auth.uid == uid;
+    }
   }
 }

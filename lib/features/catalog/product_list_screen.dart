@@ -118,6 +118,30 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               tooltip: 'Admin',
               onPressed: () => context.push('/admin'),
             ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.today_outlined),
+              tooltip: "Today's Visits",
+              onPressed: () => context.push('/doctors/today'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.local_hospital_outlined),
+              tooltip: 'My Doctors',
+              onPressed: () => context.push('/doctors'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.calendar_month_outlined),
+              tooltip: 'Weekly Visit Plan',
+              onPressed: () => context.push('/doctors/plan'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.add_alert_outlined),
+              tooltip: 'Reminders',
+              onPressed: () => context.push('/reminders'),
+            ),
           if (isSignedIn)
             IconButton(
               icon: const Icon(Icons.person_outline),

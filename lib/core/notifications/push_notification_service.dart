@@ -8,8 +8,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/providers.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../features/catalog/catalog_controller.dart';
+import '../../features/doctors/doctor_controller.dart';
 import '../../firebase_options.dart';
 import '../auth/admin_access.dart';
 import '../error/app_logger.dart';
@@ -32,6 +34,11 @@ const adminNotificationsTopic = 'admin-notifications';
 /// catalog-update push apart from any other kind of message this project
 /// might send in future without relying on notification text.
 const _catalogUpdatedType = 'catalog_updated';
+
+/// Sent to one MR's own device (via [DeviceTokenRepository], not a topic)
+/// when the admin approves/rejects their doctor create/edit request — see
+/// `reviewDoctorChangeRequest` in functions/src/index.ts.
+const _doctorRequestReviewedType = 'doctor_request_reviewed';
 
 /// Registered in main.dart (`FirebaseMessaging.onBackgroundMessage`) before
 /// `runApp`, so a data message can trigger a sync while the app is
@@ -113,6 +120,21 @@ class PushNotificationService {
       unawaited(_syncAdminTopicSubscription(next.value));
     });
 
+    // Reminder-due and doctor-request-reviewed pushes target one person's
+    // device directly (see DeviceTokenRepository) rather than a shared
+    // topic, so this device's current token has to be kept on file against
+    // whoever's signed in. Re-registers on every sign-in (covers switching
+    // accounts on a shared device) and whenever FCM rotates the token.
+    await _registerDeviceToken(_ref.read(authStateChangesProvider).value);
+    _ref.listen<AsyncValue<User?>>(authStateChangesProvider, (previous, next) {
+      unawaited(_registerDeviceToken(next.value));
+    });
+    messaging.onTokenRefresh.listen((token) {
+      final uid = _ref.read(authStateChangesProvider).value?.uid;
+      if (uid == null) return;
+      unawaited(_saveDeviceToken(uid, token));
+    });
+
     // App already running, in the foreground or background: the OS delivers
     // straight to these listeners rather than the top-level background
     // handler.
@@ -123,6 +145,32 @@ class PushNotificationService {
     debugPrint('PushNotificationService.initialize: checking for initial message');
     final initialMessage = await messaging.getInitialMessage();
     if (initialMessage != null) unawaited(_handleMessage(initialMessage));
+  }
+
+  /// Registers this device's current FCM token against [user]'s uid, if
+  /// signed in. Best-effort: a token save failing (e.g. offline right after
+  /// login) just means this device won't receive a targeted push until the
+  /// next successful registration — never worth blocking sign-in over.
+  Future<void> _registerDeviceToken(User? user) async {
+    if (user == null) return;
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token == null) return;
+      await _saveDeviceToken(user.uid, token);
+    } catch (error, stackTrace) {
+      debugPrint('PushNotificationService._registerDeviceToken: failed error=$error');
+      AppLogger.error('PushNotification', 'registerDeviceToken failed', error: error, stackTrace: stackTrace);
+    }
+  }
+
+  Future<void> _saveDeviceToken(String uid, String token) async {
+    debugPrint('PushNotificationService._saveDeviceToken: uid=$uid');
+    try {
+      await _ref.read(deviceTokenRepositoryProvider).save(uid, token);
+    } catch (error, stackTrace) {
+      debugPrint('PushNotificationService._saveDeviceToken: failed error=$error');
+      AppLogger.error('PushNotification', 'saveDeviceToken failed', error: error, stackTrace: stackTrace);
+    }
   }
 
   bool? _subscribedToAdminTopic;
@@ -147,15 +195,29 @@ class PushNotificationService {
   }
 
   Future<void> _handleMessage(RemoteMessage message) async {
-    debugPrint('PushNotificationService._handleMessage: received message type=${message.data['type']}');
-    if (message.data['type'] != _catalogUpdatedType) return;
-    try {
-      debugPrint('PushNotificationService._handleMessage: syncing catalog controller');
-      await _ref.read(catalogControllerProvider.notifier).sync();
-      debugPrint('PushNotificationService._handleMessage: foreground sync succeeded');
-    } catch (error, stackTrace) {
-      debugPrint('PushNotificationService._handleMessage: foreground sync failed error=$error');
-      AppLogger.error('PushNotification', 'foreground sync failed', error: error, stackTrace: stackTrace);
+    final type = message.data['type'];
+    debugPrint('PushNotificationService._handleMessage: received message type=$type');
+    switch (type) {
+      case _catalogUpdatedType:
+        try {
+          debugPrint('PushNotificationService._handleMessage: syncing catalog controller');
+          await _ref.read(catalogControllerProvider.notifier).sync();
+          debugPrint('PushNotificationService._handleMessage: foreground sync succeeded');
+        } catch (error, stackTrace) {
+          debugPrint('PushNotificationService._handleMessage: foreground sync failed error=$error');
+          AppLogger.error('PushNotification', 'foreground sync failed', error: error, stackTrace: stackTrace);
+        }
+      case _doctorRequestReviewedType:
+        // A doctor this MR proposed was just approved/rejected — refresh
+        // their local doctor cache so an approval shows up without them
+        // having to remember to tap "Sync" themselves.
+        try {
+          debugPrint('PushNotificationService._handleMessage: syncing doctor controller after review');
+          await _ref.read(doctorControllerProvider.notifier).sync();
+        } catch (error, stackTrace) {
+          debugPrint('PushNotificationService._handleMessage: doctor sync failed error=$error');
+          AppLogger.error('PushNotification', 'doctor sync after review failed', error: error, stackTrace: stackTrace);
+        }
     }
   }
 }

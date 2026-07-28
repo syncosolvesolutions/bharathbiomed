@@ -4,8 +4,14 @@ import 'repositories/admin_notifications_repository.dart';
 import 'repositories/admin_profile_repository.dart';
 import 'repositories/auth_repository.dart';
 import 'repositories/designation_repository.dart';
+import 'repositories/device_token_repository.dart';
+import 'repositories/doctor_change_request_repository.dart';
+import 'repositories/doctor_repository.dart';
+import 'repositories/doctor_visit_log_repository.dart';
+import 'repositories/doctor_visit_plan_repository.dart';
 import 'repositories/employee_repository.dart';
 import 'repositories/product_repository.dart';
+import 'repositories/reminder_repository.dart';
 import 'repositories/usage_session_repository.dart';
 
 /// Dependency-injection root for the data layer. Features read repositories
@@ -25,3 +31,18 @@ final adminProfileRepositoryProvider = Provider<AdminProfileRepository>((ref) =>
 
 final adminNotificationsRepositoryProvider =
     Provider<AdminNotificationsRepository>((ref) => AdminNotificationsRepository());
+
+final doctorRepositoryProvider = Provider<DoctorRepository>((ref) => DoctorRepository());
+
+final doctorChangeRequestRepositoryProvider =
+    Provider<DoctorChangeRequestRepository>((ref) => DoctorChangeRequestRepository());
+
+final doctorVisitPlanRepositoryProvider =
+    Provider<DoctorVisitPlanRepository>((ref) => DoctorVisitPlanRepository());
+
+final doctorVisitLogRepositoryProvider =
+    Provider<DoctorVisitLogRepository>((ref) => DoctorVisitLogRepository());
+
+final reminderRepositoryProvider = Provider<ReminderRepository>((ref) => ReminderRepository());
+
+final deviceTokenRepositoryProvider = Provider<DeviceTokenRepository>((ref) => DeviceTokenRepository());

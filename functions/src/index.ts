@@ -4,6 +4,7 @@ import {getAuth} from "firebase-admin/auth";
 import {getMessaging} from "firebase-admin/messaging";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {onDocumentWritten} from "firebase-functions/v2/firestore";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
 import {requireAdmin, usernameToEmail} from "./adminAccess";
@@ -185,6 +186,13 @@ export const createEmployee = onCall(async (request) => {
       dateOfBirth,
       role: "mr",
       disabled: false,
+      // New accounts must complete the mandatory first-login profile step
+      // (photo + name) before using the rest of the app — see
+      // updateMyEmployeeProfile below and Employee.profileCompleted on the
+      // Flutter side. Accounts that existed before this field shipped have
+      // no value here at all, which the client treats as already complete,
+      // so this never retroactively blocks anyone already using the app.
+      profileCompleted: false,
       createdAt: FieldValue.serverTimestamp(),
       createdBy: adminUid,
     });
@@ -505,7 +513,18 @@ export const updateMyEmployeeProfile = onCall(async (request) => {
   const displayName = `${firstName} ${lastName}`;
 
   logger.info("updateMyEmployeeProfile: updating Users profile doc", {uid});
-  await userDoc.ref.update({firstName, lastName, displayName, mobileNumber, photoUrl, dateOfBirth});
+  // Any self-service edit — including the mandatory first-login completion
+  // screen, which calls this same endpoint — counts as having completed the
+  // profile step.
+  await userDoc.ref.update({
+    firstName,
+    lastName,
+    displayName,
+    mobileNumber,
+    photoUrl,
+    dateOfBirth,
+    profileCompleted: true,
+  });
   logger.info("updateMyEmployeeProfile: updated Users profile doc", {uid});
 
   return {success: true};
@@ -621,4 +640,208 @@ export const onDepartmentsChanged = onDocumentWritten("Department/{departmentDoc
   logger.info("onDepartmentsChanged: called", {departmentDoc: event.params.departmentDoc});
   await notifyCatalogUpdated();
   logger.info("onDepartmentsChanged: finished", {departmentDoc: event.params.departmentDoc});
+});
+
+/**
+ * Sends a push to one specific person's device, looked up via
+ * DeviceTokens/{uid} (see lib/data/remote/device_token_remote_data_source.dart
+ * on the Flutter side). Unlike the topic-based pushes above (every device
+ * shares catalog-updates/admin-notifications), a doctor-request-reviewed or
+ * reminder-due push is only ever meant for one person, so it's sent to their
+ * token directly rather than broadcast. Silently does nothing if that
+ * person's device never registered a token (push permission denied, running
+ * on an emulator, etc.) — these are all best-effort, never something a
+ * workflow depends on completing.
+ */
+async function sendPushToUser(
+  uid: string,
+  notification: {title: string; body: string},
+  data: Record<string, string>
+): Promise<void> {
+  logger.info("sendPushToUser: called", {uid});
+  const tokenDoc = await getFirestore().collection("DeviceTokens").doc(uid).get();
+  const token = tokenDoc.data()?.token as string | undefined;
+  if (!token) {
+    logger.info("sendPushToUser: no device token on file, skipping", {uid});
+    return;
+  }
+  try {
+    await getMessaging().send({
+      token,
+      notification,
+      data,
+      android: {priority: "high"},
+      apns: {headers: {"apns-priority": "10"}, payload: {aps: {contentAvailable: true, sound: "default"}}},
+    });
+    logger.info("sendPushToUser: sent", {uid});
+  } catch (error) {
+    // A stale/unregistered token is expected (app uninstalled, token
+    // rotated) — log and move on rather than failing whatever triggered
+    // this push.
+    logger.warn("sendPushToUser: send failed", {uid, error: String(error)});
+  }
+}
+
+interface ReviewDoctorChangeRequestRequest {
+  requestId: string;
+  approve: boolean;
+  reviewNote?: string;
+}
+
+/**
+ * Admin-only: approves or rejects an MR's proposed doctor create/edit (see
+ * DoctorChangeRequests in firestore.rules). Approving a `create` adds a new
+ * Doctors doc from `proposedData`; approving an `update` merges it into the
+ * existing doctor. Either way, the requesting MR is pushed a notification
+ * once this resolves, via their own device token so only they see it.
+ */
+export const reviewDoctorChangeRequest = onCall(async (request) => {
+  logger.info("reviewDoctorChangeRequest: called", {
+    requestId: (request.data as Partial<ReviewDoctorChangeRequestRequest>)?.requestId,
+    approve: (request.data as Partial<ReviewDoctorChangeRequestRequest>)?.approve,
+  });
+  const adminUid = requireAdmin(request);
+
+  const data = request.data as Partial<ReviewDoctorChangeRequestRequest>;
+  const requestId = data.requestId ?? "";
+  const approve = data.approve;
+  const reviewNote = data.reviewNote?.trim() || null;
+
+  if (!requestId) {
+    throw new HttpsError("invalid-argument", "requestId is required.");
+  }
+  if (typeof approve !== "boolean") {
+    throw new HttpsError("invalid-argument", "approve must be a boolean.");
+  }
+
+  const firestore = getFirestore();
+  const requestRef = firestore.collection("DoctorChangeRequests").doc(requestId);
+  const requestDoc = await requestRef.get();
+  if (!requestDoc.exists) {
+    throw new HttpsError("not-found", "That request no longer exists.");
+  }
+  const requestData = requestDoc.data()!;
+  if (requestData.status !== "pending") {
+    throw new HttpsError("failed-precondition", "That request has already been reviewed.");
+  }
+
+  const proposedData = (requestData.proposedData ?? {}) as Record<string, unknown>;
+  const type = requestData.type as string;
+  const doctorId = requestData.doctorId as string | null;
+
+  if (approve) {
+    logger.info("reviewDoctorChangeRequest: approving", {requestId, type, doctorId});
+    if (type === "update" && doctorId) {
+      await firestore
+        .collection("Doctors")
+        .doc(doctorId)
+        .set({...proposedData, updatedAt: FieldValue.serverTimestamp()}, {merge: true});
+    } else {
+      await firestore.collection("Doctors").add({...proposedData, updatedAt: FieldValue.serverTimestamp()});
+    }
+  }
+
+  await requestRef.update({
+    status: approve ? "approved" : "rejected",
+    reviewNote,
+    reviewedByUid: adminUid,
+    reviewedAt: FieldValue.serverTimestamp(),
+  });
+
+  const requestedByUid = requestData.requestedByUid as string | undefined;
+  const doctorName = (proposedData.name as string | undefined) || "A doctor";
+  const action = type === "update" ? "update to" : "addition of";
+  if (requestedByUid) {
+    await sendPushToUser(
+      requestedByUid,
+      {
+        title: approve ? "Doctor request approved" : "Doctor request rejected",
+        body: approve
+          ? `Your ${action} ${doctorName} was approved.`
+          : `Your ${action} ${doctorName} was rejected.${reviewNote ? " " + reviewNote : ""}`,
+      },
+      {type: "doctor_request_reviewed", requestId, approved: String(approve)}
+    );
+  }
+
+  logger.info("reviewDoctorChangeRequest: succeeded", {requestId, approve});
+  return {success: true};
+});
+
+/**
+ * Notifies the admin (via the existing AdminNotifications bell + push topic
+ * — see onEmployeeDobChanged above) whenever an MR submits a new doctor
+ * create/edit request, so the admin doesn't have to remember to go check for
+ * pending requests themselves.
+ */
+export const onDoctorChangeRequestCreated = onDocumentWritten("DoctorChangeRequests/{requestId}", async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after?.data();
+  if (before?.exists || !after) return; // Only fire on creation, not on review.
+
+  const requestId = event.params.requestId;
+  const requestedByName = (after.requestedByName as string | undefined) || "An MR";
+  const type = after.type as string;
+  const proposedData = after.proposedData as Record<string, unknown> | undefined;
+  const doctorName = (proposedData?.name as string | undefined) || "a doctor";
+  const message = `${requestedByName} ${type === "update" ? "proposed an edit to" : "proposed adding"} ${doctorName}.`;
+  logger.info("onDoctorChangeRequestCreated: new request, notifying admin", {requestId});
+
+  await getFirestore().collection("AdminNotifications").add({
+    employeeUid: (after.requestedByUid as string | undefined) ?? "",
+    employeeName: requestedByName,
+    message,
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await getMessaging().send({
+    topic: ADMIN_NOTIFICATIONS_TOPIC,
+    notification: {title: "New doctor request", body: message},
+    data: {type: "admin_notification", requestId},
+    android: {priority: "high", notification: {channelId: "admin_notifications"}},
+    apns: {headers: {"apns-priority": "10"}, payload: {aps: {contentAvailable: true, sound: "default"}}},
+  });
+  logger.info("onDoctorChangeRequestCreated: finished", {requestId});
+});
+
+/**
+ * Runs every 15 minutes, pushing anyone whose reminder just came due.
+ * Filtered to a single equality clause (`notified == false`) so this never
+ * needs a composite Firestore index to deploy; the `dueAt <= now` check
+ * happens in code, which is fine at this collection's expected scale (a
+ * handful of open reminders per person at any time). `notified` guards
+ * against double-sending on the next run for a reminder this already fired
+ * for.
+ */
+export const sendDueReminders = onSchedule("every 15 minutes", async () => {
+  logger.info("sendDueReminders: called");
+  const firestore = getFirestore();
+  const now = Timestamp.now();
+  const notifiedPendingSnapshot = await firestore.collection("Reminders").where("notified", "==", false).get();
+
+  const due = notifiedPendingSnapshot.docs.filter((doc) => {
+    const dueAt = doc.data().dueAt as Timestamp | undefined;
+    return dueAt !== undefined && dueAt.toMillis() <= now.toMillis();
+  });
+
+  if (due.length === 0) {
+    logger.info("sendDueReminders: nothing due");
+    return;
+  }
+  logger.info("sendDueReminders: found due reminders", {count: due.length});
+
+  for (const doc of due) {
+    const reminder = doc.data();
+    const ownerUid = reminder.ownerUid as string | undefined;
+    if (ownerUid && !reminder.completed) {
+      await sendPushToUser(
+        ownerUid,
+        {title: "Reminder", body: (reminder.title as string) || "You have a reminder due."},
+        {type: "reminder_due", reminderId: doc.id}
+      );
+    }
+    await doc.ref.update({notified: true});
+  }
+  logger.info("sendDueReminders: finished", {count: due.length});
 });

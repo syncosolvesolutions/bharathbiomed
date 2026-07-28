@@ -37,6 +37,14 @@ class Employee extends Equatable {
   /// (create/edit) or by the MR themselves via the Profile screen.
   final String? dateOfBirth;
 
+  /// Whether this MR has completed the mandatory first-login profile setup
+  /// (requirement: photo + name before using the rest of the app). Defaults
+  /// to `true` when absent so accounts that existed before this field was
+  /// introduced are never retroactively blocked — only accounts created
+  /// after this shipped start out `false` (see functions/src/index.ts
+  /// `createEmployee`).
+  final bool profileCompleted;
+
   const Employee({
     required this.uid,
     required this.username,
@@ -49,6 +57,7 @@ class Employee extends Equatable {
     this.email,
     this.disabled = false,
     this.dateOfBirth,
+    this.profileCompleted = true,
   });
 
   String get displayName => '$firstName $lastName';
@@ -86,6 +95,7 @@ class Employee extends Equatable {
       email: json['email'] as String?,
       disabled: json['disabled'] as bool? ?? false,
       dateOfBirth: json['dateOfBirth'] as String?,
+      profileCompleted: json['profileCompleted'] as bool? ?? true,
     );
   }
 
@@ -98,6 +108,7 @@ class Employee extends Equatable {
         designation,
         areaName,
         mobileNumber,
+        profileCompleted,
         photoUrl,
         email,
         disabled,
