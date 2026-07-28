@@ -9,6 +9,8 @@ import * as logger from "firebase-functions/logger";
 
 import {requireAdmin, usernameToEmail} from "./adminAccess";
 
+export {onUserOrgChanged, onDesignationOrgChanged} from "./hierarchy";
+
 initializeApp();
 
 const USERNAME_PATTERN = /^[a-z0-9._-]{3,32}$/;
@@ -28,6 +30,51 @@ interface CreateEmployeeRequest {
   photoUrl?: string;
   email: string;
   dateOfBirth?: string;
+  designationId?: string;
+  managerId?: string;
+}
+
+/**
+ * Resolves and validates optional hierarchy fields for create/update: if
+ * `designationId` is present it must point at a real `Designations` doc; if
+ * `managerId` is also present, the candidate manager must be a real "mr"
+ * account with a strictly lower `hierarchyLevel` than the designation being
+ * assigned — the one hard universal rule (deliberately simple: category
+ * pairing, e.g. "only a Field designation can report to another Field
+ * designation", is left to client-side UI filtering, not enforced here).
+ * Returns null values for either field left unset, matching how the rest of
+ * this file treats "not provided" for optional employee fields.
+ */
+async function resolveHierarchyFields(
+  designationId: string | undefined,
+  managerId: string | undefined
+): Promise<{designationId: string | null; managerId: string | null}> {
+  logger.info("resolveHierarchyFields: called", {designationId: designationId ?? null, managerId: managerId ?? null});
+  if (!designationId) {
+    return {designationId: null, managerId: null};
+  }
+
+  const firestore = getFirestore();
+  const designationDoc = await firestore.collection("Designations").doc(designationId).get();
+  if (!designationDoc.exists) {
+    throw new HttpsError("invalid-argument", "That designation no longer exists. Please pick another.");
+  }
+  const designationLevel = (designationDoc.data()?.hierarchyLevel as number) ?? 0;
+
+  if (!managerId) {
+    return {designationId, managerId: null};
+  }
+
+  const managerDoc = await firestore.collection("Users").doc(managerId).get();
+  if (!managerDoc.exists || managerDoc.data()?.role !== "mr") {
+    throw new HttpsError("invalid-argument", "That manager no longer exists. Please pick another.");
+  }
+  const managerLevel = managerDoc.data()?.hierarchyLevel as number | undefined;
+  if (managerLevel === undefined || managerLevel >= designationLevel) {
+    throw new HttpsError("invalid-argument", "The chosen manager must be higher in the hierarchy than this employee.");
+  }
+
+  return {designationId, managerId};
 }
 
 /**
@@ -143,6 +190,7 @@ export const createEmployee = onCall(async (request) => {
   }
 
   await requireUsernameAvailable(username);
+  const {designationId, managerId} = await resolveHierarchyFields(data.designationId, data.managerId);
 
   const displayName = `${firstName} ${lastName}`;
   const loginEmail = email;
@@ -184,6 +232,8 @@ export const createEmployee = onCall(async (request) => {
       photoUrl,
       email,
       dateOfBirth,
+      designationId,
+      managerId,
       role: "mr",
       disabled: false,
       // New accounts must complete the mandatory first-login profile step
@@ -258,6 +308,8 @@ interface UpdateEmployeeRequest {
   photoUrl?: string;
   email: string;
   dateOfBirth?: string;
+  designationId?: string;
+  managerId?: string;
 }
 
 /**
@@ -317,6 +369,7 @@ export const updateEmployee = onCall(async (request) => {
   if (username !== userDoc.data()?.username) {
     await requireUsernameAvailable(username, uid);
   }
+  const {designationId, managerId} = await resolveHierarchyFields(data.designationId, data.managerId);
 
   const displayName = `${firstName} ${lastName}`;
   const loginEmail = email;
@@ -346,6 +399,8 @@ export const updateEmployee = onCall(async (request) => {
       photoUrl,
       email,
       dateOfBirth,
+      designationId,
+      managerId,
     });
     logger.info("updateEmployee: updated Users profile doc", {uid, username});
   } catch (error) {

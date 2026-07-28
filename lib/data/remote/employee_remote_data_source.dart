@@ -36,6 +36,21 @@ class EmployeeRemoteDataSource {
     return employees;
   }
 
+  /// Every employee in [managerUid]'s downline tree (direct reports and
+  /// their reports, transitively) — relies on the server-maintained
+  /// `reportingChainUids` field (see `functions/src/hierarchy.ts`), which
+  /// stores each employee's *full* ancestor chain, so a manager's entire
+  /// subtree is a single flat `array-contains` query rather than a
+  /// multi-level walk.
+  Future<List<Employee>> fetchDownline(String managerUid) async {
+    debugPrint('EmployeeRemoteDataSource.fetchDownline: querying downline of managerUid=$managerUid');
+    final snapshot =
+        await _firestore.collection('Users').where('reportingChainUids', arrayContains: managerUid).get();
+    final employees = snapshot.docs.map((doc) => Employee.fromJson(doc.id, doc.data())).toList();
+    debugPrint('EmployeeRemoteDataSource.fetchDownline: fetched ${employees.length} employees');
+    return employees;
+  }
+
   /// Streams the signed-in MR's own profile for the Profile screen — works
   /// once firestore.rules lets a caller read `Users/{uid}` where `uid ==
   /// request.auth.uid`. Emits `null` if the doc doesn't exist.
@@ -65,6 +80,8 @@ class EmployeeRemoteDataSource {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) async {
     debugPrint('EmployeeRemoteDataSource.create: calling createEmployee callable username=$username email=$email');
     final result = await _functions.httpsCallable('createEmployee').call({
@@ -78,6 +95,8 @@ class EmployeeRemoteDataSource {
       if (mobileNumber != null && mobileNumber.isNotEmpty) 'mobileNumber': mobileNumber,
       if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
       if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'dateOfBirth': dateOfBirth,
+      if (designationId != null && designationId.isNotEmpty) 'designationId': designationId,
+      if (managerId != null && managerId.isNotEmpty) 'managerId': managerId,
     });
     final data = Map<String, dynamic>.from(result.data as Map);
     debugPrint('EmployeeRemoteDataSource.create: createEmployee succeeded username=${data['username']}');
@@ -95,6 +114,8 @@ class EmployeeRemoteDataSource {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) async {
     debugPrint('EmployeeRemoteDataSource.update: calling updateEmployee callable uid=$uid username=$username');
     final result = await _functions.httpsCallable('updateEmployee').call({
@@ -108,6 +129,8 @@ class EmployeeRemoteDataSource {
       if (mobileNumber != null && mobileNumber.isNotEmpty) 'mobileNumber': mobileNumber,
       if (photoUrl != null && photoUrl.isNotEmpty) 'photoUrl': photoUrl,
       if (dateOfBirth != null && dateOfBirth.isNotEmpty) 'dateOfBirth': dateOfBirth,
+      if (designationId != null && designationId.isNotEmpty) 'designationId': designationId,
+      if (managerId != null && managerId.isNotEmpty) 'managerId': managerId,
     });
     final data = Map<String, dynamic>.from(result.data as Map);
     debugPrint('EmployeeRemoteDataSource.update: updateEmployee succeeded uid=$uid');

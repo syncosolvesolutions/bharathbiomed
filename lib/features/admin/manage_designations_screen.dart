@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/app_logger.dart';
@@ -16,14 +17,11 @@ class ManageDesignationsScreen extends ConsumerStatefulWidget {
 }
 
 class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScreen> {
-  final _nameController = TextEditingController();
   final _searchController = TextEditingController();
-  bool _adding = false;
 
   @override
   void dispose() {
     debugPrint('ManageDesignationsScreen.dispose: disposing');
-    _nameController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -45,44 +43,6 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
       if (!mounted) return;
       QuickAlert.show(context: context, type: QuickAlertType.error, title: failureTitle, text: UserFacingError.describe(error));
     }
-  }
-
-  Future<void> _add() async {
-    debugPrint('ManageDesignationsScreen._add: add requested');
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
-
-    setState(() => _adding = true);
-    await _runGuarded(
-      () => ref.read(designationControllerProvider.notifier).add(name),
-      failureTitle: 'Failed to add designation',
-    );
-    if (mounted) {
-      setState(() => _adding = false);
-      _nameController.clear();
-    }
-  }
-
-  Future<void> _rename(Designation designation) async {
-    debugPrint('ManageDesignationsScreen._rename: rename requested id=${designation.id}');
-    final controller = TextEditingController(text: designation.name);
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Rename designation'),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
-        ],
-      ),
-    );
-    if (newName == null || newName.isEmpty || newName == designation.name) return;
-
-    await _runGuarded(
-      () => ref.read(designationControllerProvider.notifier).rename(designation.id, newName),
-      failureTitle: 'Failed to rename designation',
-    );
   }
 
   Future<void> _delete(Designation designation) async {
@@ -111,29 +71,20 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
     final designations = ref.watch(designationControllerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Designations')),
+      appBar: AppBar(
+        title: const Text('Manage Designations'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add designation',
+            onPressed: () => context.push('/admin/designations/add'),
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(labelText: 'New designation name'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _adding ? null : _add,
-                  child: _adding
-                      ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Add'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
             TextField(
               controller: _searchController,
               decoration: const InputDecoration(
@@ -165,10 +116,14 @@ class _ManageDesignationsScreenState extends ConsumerState<ManageDesignationsScr
                           child: Icon(Icons.badge_outlined, color: color, size: 20),
                         ),
                         title: Text(designation.name),
+                        subtitle: Text('${designation.category.label} · Level ${designation.hierarchyLevel}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(icon: const Icon(Icons.edit), onPressed: () => _rename(designation)),
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              onPressed: () => context.push('/admin/designations/edit', extra: designation),
+                            ),
                             IconButton(
                               icon: Icon(Icons.delete, color: Theme.of(context).colorScheme.error),
                               onPressed: () => _delete(designation),

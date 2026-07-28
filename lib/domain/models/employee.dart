@@ -45,6 +45,28 @@ class Employee extends Equatable {
   /// `createEmployee`).
   final bool profileCompleted;
 
+  /// FK -> Designations/{id}. Additive alongside [designation] (the free
+  /// display string) — null for every account until an admin assigns one
+  /// through the updated employee form, so existing accounts keep working
+  /// unchanged.
+  final String? designationId;
+
+  /// FK -> Users/{uid}, this employee's direct manager. Null until assigned.
+  final String? managerId;
+
+  /// Server-computed (see `functions/src/hierarchy.ts`), direct-manager-first
+  /// ordered list of every manager above this employee. Empty until
+  /// [managerId] is set and the recompute trigger has run.
+  final List<String> reportingChainUids;
+
+  /// Denormalized copy of `Designations/{designationId}.permissions`, kept in
+  /// sync by the same trigger that computes [reportingChainUids].
+  final List<String> permissions;
+
+  /// Denormalized copy of the assigned designation's hierarchyLevel/category.
+  final int? hierarchyLevel;
+  final String? category;
+
   const Employee({
     required this.uid,
     required this.username,
@@ -58,6 +80,12 @@ class Employee extends Equatable {
     this.disabled = false,
     this.dateOfBirth,
     this.profileCompleted = true,
+    this.designationId,
+    this.managerId,
+    this.reportingChainUids = const [],
+    this.permissions = const [],
+    this.hierarchyLevel,
+    this.category,
   });
 
   String get displayName => '$firstName $lastName';
@@ -96,6 +124,12 @@ class Employee extends Equatable {
       disabled: json['disabled'] as bool? ?? false,
       dateOfBirth: json['dateOfBirth'] as String?,
       profileCompleted: json['profileCompleted'] as bool? ?? true,
+      designationId: json['designationId'] as String?,
+      managerId: json['managerId'] as String?,
+      reportingChainUids: List<String>.from(json['reportingChainUids'] as List? ?? const []),
+      permissions: List<String>.from(json['permissions'] as List? ?? const []),
+      hierarchyLevel: (json['hierarchyLevel'] as num?)?.toInt(),
+      category: json['category'] as String?,
     );
   }
 
@@ -113,5 +147,11 @@ class Employee extends Equatable {
         email,
         disabled,
         dateOfBirth,
+        designationId,
+        managerId,
+        reportingChainUids,
+        permissions,
+        hierarchyLevel,
+        category,
       ];
 }

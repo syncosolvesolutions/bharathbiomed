@@ -15,6 +15,13 @@ class EmployeeRepository {
     return _remote.fetchAll();
   }
 
+  /// Everyone in [managerUid]'s downline tree — see
+  /// [EmployeeRemoteDataSource.fetchDownline].
+  Future<List<Employee>> fetchDownline(String managerUid) {
+    debugPrint('EmployeeRepository.fetchDownline: managerUid=$managerUid');
+    return _remote.fetchDownline(managerUid);
+  }
+
   Future<EmployeeCredentials> create({
     required String firstName,
     required String lastName,
@@ -26,6 +33,8 @@ class EmployeeRepository {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) {
     debugPrint('EmployeeRepository.create: creating employee username=$username email=$email');
     return _remote.create(
@@ -39,6 +48,8 @@ class EmployeeRepository {
       mobileNumber: mobileNumber,
       photoUrl: photoUrl,
       dateOfBirth: dateOfBirth,
+      designationId: designationId,
+      managerId: managerId,
     );
   }
 
@@ -53,6 +64,8 @@ class EmployeeRepository {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) {
     debugPrint('EmployeeRepository.update: updating employee uid=$uid username=$username');
     return _remote.update(
@@ -66,6 +79,8 @@ class EmployeeRepository {
       mobileNumber: mobileNumber,
       photoUrl: photoUrl,
       dateOfBirth: dateOfBirth,
+      designationId: designationId,
+      managerId: managerId,
     );
   }
 

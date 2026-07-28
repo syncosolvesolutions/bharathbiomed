@@ -16,6 +16,13 @@ import 'widgets/photo_picker_field.dart';
 
 const _defaultPassword = 'Bharathbio@2026';
 
+T? _firstWhereOrNull<T>(Iterable<T> items, bool Function(T) test) {
+  for (final item in items) {
+    if (test(item)) return item;
+  }
+  return null;
+}
+
 /// Add or edit an employee. `employee == null` means "add" — the username is
 /// auto-suggested from the name (editable before saving) and a password
 /// field is shown, since the account doesn't exist yet; both are then shown
@@ -44,6 +51,8 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
   final _passwordController = TextEditingController(text: _defaultPassword);
 
   late String? _designation = widget.employee?.designation;
+  late String? _designationId = widget.employee?.designationId;
+  late String? _managerId = widget.employee?.managerId;
   late String? _photoUrl = widget.employee?.photoUrl;
   late String? _dateOfBirth = widget.employee?.dateOfBirth;
   bool _saving = false;
@@ -135,6 +144,8 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
               mobileNumber: mobile.isEmpty ? null : mobile,
               photoUrl: _photoUrl,
               dateOfBirth: _dateOfBirth,
+              designationId: _designationId,
+              managerId: _managerId,
             );
         debugPrint('EmployeeFormScreen._save: updateEmployee succeeded uid=${widget.employee!.uid}');
       } else {
@@ -150,6 +161,8 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
               mobileNumber: mobile.isEmpty ? null : mobile,
               photoUrl: _photoUrl,
               dateOfBirth: _dateOfBirth,
+              designationId: _designationId,
+              managerId: _managerId,
             );
         debugPrint('EmployeeFormScreen._save: createEmployee succeeded username=${_usernameController.text.trim()}');
       }
@@ -234,13 +247,58 @@ class _EmployeeFormScreenState extends ConsumerState<EmployeeFormScreen> {
               designations.when(
                 loading: () => const LinearProgressIndicator(),
                 error: (error, _) => Text('Failed to load designations: ${UserFacingError.describe(error)}'),
-                data: (items) => DropdownButtonFormField<String>(
-                  initialValue: _designation,
-                  decoration: const InputDecoration(labelText: 'Designation'),
-                  items: items.map((d) => DropdownMenuItem(value: d.name, child: Text(d.name))).toList(),
-                  onChanged: (value) => setState(() => _designation = value),
-                  validator: (value) => value == null ? 'Please choose a designation' : null,
-                ),
+                data: (items) {
+                  final selected = _firstWhereOrNull(items, (d) => d.id == _designationId);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: _designation,
+                        decoration: const InputDecoration(labelText: 'Designation'),
+                        items: items.map((d) => DropdownMenuItem(value: d.name, child: Text(d.name))).toList(),
+                        onChanged: (value) {
+                          final match = _firstWhereOrNull(items, (d) => d.name == value);
+                          setState(() {
+                            _designation = value;
+                            _designationId = match?.id;
+                            _managerId = null;
+                          });
+                        },
+                        validator: (value) => value == null ? 'Please choose a designation' : null,
+                      ),
+                      if (selected != null) ...[
+                        const SizedBox(height: 12),
+                        Consumer(builder: (context, ref, _) {
+                          final employeesAsync = ref.watch(employeeControllerProvider);
+                          return employeesAsync.when(
+                            loading: () => const LinearProgressIndicator(),
+                            error: (error, _) =>
+                                Text('Failed to load employees: ${UserFacingError.describe(error)}'),
+                            data: (employees) {
+                              final candidates = employees
+                                  .where((e) =>
+                                      e.uid != widget.employee?.uid &&
+                                      e.hierarchyLevel != null &&
+                                      e.hierarchyLevel! < selected.hierarchyLevel)
+                                  .toList();
+                              final validManagerId = candidates.any((e) => e.uid == _managerId) ? _managerId : null;
+                              return DropdownButtonFormField<String?>(
+                                initialValue: validManagerId,
+                                decoration: const InputDecoration(labelText: 'Reports To (Manager, optional)'),
+                                items: [
+                                  const DropdownMenuItem<String?>(value: null, child: Text('None')),
+                                  ...candidates.map(
+                                      (e) => DropdownMenuItem(value: e.uid, child: Text(e.displayName))),
+                                ],
+                                onChanged: (value) => setState(() => _managerId = value),
+                              );
+                            },
+                          );
+                        }),
+                      ],
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(

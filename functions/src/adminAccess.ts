@@ -1,5 +1,6 @@
 import {HttpsError} from "firebase-functions/v2/https";
 import type {CallableRequest} from "firebase-functions/v2/https";
+import {getFirestore} from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 // Mirrors the allowlist in lib/core/auth/admin_access.dart on the Flutter
@@ -40,4 +41,28 @@ export function requireAdmin(request: CallableRequest): string {
     throw new HttpsError("permission-denied", "Only an admin can perform this action.");
   }
   return request.auth.uid;
+}
+
+/**
+ * Non-admin (designation/permission-based) role gate for Order/Invoice-style
+ * callables — separate from and unrelated to [requireAdmin]'s hardcoded
+ * allowlist (see `Users/{uid}.permissions`, denormalized from the caller's
+ * assigned designation by `functions/src/hierarchy.ts`). Checks live
+ * Firestore state rather than a custom claim/token field, since permissions
+ * can change at any time via the admin's designation editor and a signed-in
+ * user's ID token isn't refreshed on that timescale.
+ */
+export async function requirePermission(request: CallableRequest, permission: string): Promise<string> {
+  logger.info("requirePermission: called", {permission});
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const uid = request.auth.uid;
+  const userDoc = await getFirestore().collection("Users").doc(uid).get();
+  const permissions = (userDoc.data()?.permissions as string[] | undefined) ?? [];
+  if (!userDoc.exists || userDoc.data()?.role !== "mr" || !permissions.includes(permission)) {
+    logger.warn("requirePermission: rejected", {uid, permission, exists: userDoc.exists});
+    throw new HttpsError("permission-denied", `This action requires the "${permission}" permission.`);
+  }
+  return uid;
 }

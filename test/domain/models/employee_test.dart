@@ -38,4 +38,46 @@ void main() {
       expect(_employeeWithDob('not-a-date').isBirthdayToday, isFalse);
     });
   });
+
+  group('Employee.fromJson hierarchy fields', () {
+    test('default safely for a legacy doc missing all of them', () {
+      final employee = Employee.fromJson('uid1', {
+        'username': 'rajesh',
+        'firstName': 'Rajesh',
+        'lastName': 'Kumar',
+        'designation': 'MR',
+        'areaName': 'North',
+      });
+
+      expect(employee.designationId, isNull);
+      expect(employee.managerId, isNull);
+      expect(employee.reportingChainUids, isEmpty);
+      expect(employee.permissions, isEmpty);
+      expect(employee.hierarchyLevel, isNull);
+      expect(employee.category, isNull);
+    });
+
+    test('parse when present', () {
+      final employee = Employee.fromJson('uid1', {
+        'username': 'rajesh',
+        'firstName': 'Rajesh',
+        'lastName': 'Kumar',
+        'designation': 'MR',
+        'areaName': 'North',
+        'designationId': 'd1',
+        'managerId': 'uid2',
+        'reportingChainUids': ['uid2', 'uid3'],
+        'permissions': ['create_orders'],
+        'hierarchyLevel': 5,
+        'category': 'field',
+      });
+
+      expect(employee.designationId, 'd1');
+      expect(employee.managerId, 'uid2');
+      expect(employee.reportingChainUids, ['uid2', 'uid3']);
+      expect(employee.permissions, ['create_orders']);
+      expect(employee.hierarchyLevel, 5);
+      expect(employee.category, 'field');
+    });
+  });
 }

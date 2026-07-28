@@ -29,6 +29,8 @@ class EmployeeController extends AsyncNotifier<List<Employee>> {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) async {
     debugPrint('EmployeeController.createEmployee: creating employee username=$username designation=$designation');
     final credentials = await ref.read(employeeRepositoryProvider).create(
@@ -42,6 +44,8 @@ class EmployeeController extends AsyncNotifier<List<Employee>> {
           mobileNumber: mobileNumber,
           photoUrl: photoUrl,
           dateOfBirth: dateOfBirth,
+          designationId: designationId,
+          managerId: managerId,
         );
     debugPrint('EmployeeController.createEmployee: created employee username=$username');
     await _refresh();
@@ -59,6 +63,8 @@ class EmployeeController extends AsyncNotifier<List<Employee>> {
     String? mobileNumber,
     String? photoUrl,
     String? dateOfBirth,
+    String? designationId,
+    String? managerId,
   }) async {
     debugPrint('EmployeeController.updateEmployee: updating employee uid=$uid');
     final credentials = await ref.read(employeeRepositoryProvider).update(
@@ -72,6 +78,8 @@ class EmployeeController extends AsyncNotifier<List<Employee>> {
           mobileNumber: mobileNumber,
           photoUrl: photoUrl,
           dateOfBirth: dateOfBirth,
+          designationId: designationId,
+          managerId: managerId,
         );
     debugPrint('EmployeeController.updateEmployee: updated employee uid=$uid');
     await _refresh();

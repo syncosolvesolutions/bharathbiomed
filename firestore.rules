@@ -20,6 +20,16 @@ service cloud.firestore {
       ];
     }
 
+    // Fully separate from isAdmin() above — this is the new designation/
+    // permission hierarchy (see functions/src/hierarchy.ts), which controls
+    // Order/Invoice-style visibility, not access to the admin panel. Reads
+    // the caller's own denormalized `permissions` (copied from their
+    // assigned designation onto their Users doc by the hierarchy trigger).
+    function hasGlobalVisibility() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/Users/$(request.auth.uid)).data.get('permissions', []).hasAny(['view_global_data']);
+    }
+
     // Catalog data: every signed-in user (reps and admin alike) can read it
     // to sync their device; only the admin can write it directly. Sales
     // reps go through Cloud Functions for nothing here — direct writes from
@@ -43,14 +53,20 @@ service cloud.firestore {
     }
 
     // Medical Representative profiles. The admin may read the whole list
-    // (to show it in "Manage Employees"); an MR may read their own doc only
-    // (the Profile screen). Nobody writes here directly — creation, edits
-    // (admin or self-service), deletion, etc. all go through Cloud
-    // Functions (createEmployee/updateEmployee/deleteEmployee/
+    // (to show it in "Manage Employees"); an MR may read their own doc,
+    // any doc in their reporting chain's downline (reportingChainUids is
+    // the full ancestor list per doc, so this is a manager reading anyone
+    // in their subtree), or anyone at all if they hold view_global_data.
+    // Nobody writes here directly — creation, edits (admin or
+    // self-service), deletion, etc. all go through Cloud Functions
+    // (createEmployee/updateEmployee/deleteEmployee/
     // updateMyEmployeeProfile/...), which use the Admin SDK and bypass
     // these rules.
     match /Users/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow read: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid)
+        || (isSignedIn() && resource.data.get('reportingChainUids', []).hasAny([request.auth.uid]))
+        || hasGlobalVisibility();
       allow write: if false;
     }
 

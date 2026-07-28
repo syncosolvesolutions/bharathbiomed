@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../domain/models/designation.dart';
+import '../../domain/models/permission.dart';
 
 final designationControllerProvider =
     AsyncNotifierProvider<DesignationController, List<Designation>>(DesignationController.new);
@@ -16,17 +17,26 @@ class DesignationController extends AsyncNotifier<List<Designation>> {
     return result;
   }
 
-  Future<void> add(String name) async {
-    debugPrint('DesignationController.add: adding designation name=$name');
-    await ref.read(designationRepositoryProvider).add(name);
-    debugPrint('DesignationController.add: added designation name=$name');
-    await _refresh();
-  }
-
-  Future<void> rename(String id, String name) async {
-    debugPrint('DesignationController.rename: renaming id=$id to name=$name');
-    await ref.read(designationRepositoryProvider).rename(id, name);
-    debugPrint('DesignationController.rename: renamed id=$id to name=$name');
+  Future<void> save({
+    String? id,
+    required String name,
+    required DesignationCategory category,
+    required int hierarchyLevel,
+    String? parentDesignationId,
+    required Set<Permission> permissions,
+    required Set<String> downlineDesignationIds,
+  }) async {
+    debugPrint('DesignationController.save: saving id=$id name=$name');
+    await ref.read(designationRepositoryProvider).save(
+          id: id,
+          name: name,
+          category: category,
+          hierarchyLevel: hierarchyLevel,
+          parentDesignationId: parentDesignationId,
+          permissions: permissions,
+          downlineDesignationIds: downlineDesignationIds,
+        );
+    debugPrint('DesignationController.save: saved id=$id name=$name');
     await _refresh();
   }
 

@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/providers.dart';
+import '../../domain/models/designation.dart';
 import '../../domain/models/doctor.dart';
 import '../../domain/models/employee.dart';
 import '../../domain/models/product.dart';
 import '../../features/admin/admin_home_screen.dart';
 import '../../features/admin/admin_notifications_screen.dart';
 import '../../features/admin/department_products_screen.dart';
+import '../../features/admin/designation_form_screen.dart';
 import '../../features/admin/doctors/admin_doctors_screen.dart';
 import '../../features/admin/doctors/doctor_requests_screen.dart';
 import '../../features/admin/employee_form_screen.dart';
@@ -106,6 +108,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Doctor) return '/doctors';
         case '/admin/doctors/edit':
           if (state.extra is! Doctor) return '/admin/doctors';
+        case '/admin/designations/edit':
+          if (state.extra is! Designation) return '/admin/designations';
       }
 
       return null;
@@ -150,6 +154,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => DepartmentProductsScreen(department: state.extra as String),
       ),
       GoRoute(path: '/admin/designations', builder: (context, state) => const ManageDesignationsScreen()),
+      GoRoute(path: '/admin/designations/add', builder: (context, state) => const DesignationFormScreen()),
+      GoRoute(
+        path: '/admin/designations/edit',
+        builder: (context, state) => DesignationFormScreen(designation: state.extra as Designation),
+      ),
       GoRoute(path: '/admin/employees', builder: (context, state) => const ManageEmployeesScreen()),
       GoRoute(path: '/admin/notifications', builder: (context, state) => const AdminNotificationsScreen()),
       GoRoute(path: '/admin/doctors', builder: (context, state) => const AdminDoctorsScreen()),
