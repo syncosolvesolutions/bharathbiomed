@@ -42,18 +42,6 @@ void main() {
     );
   });
 
-  group('hasCachedCatalog', () {
-    test('is false when the local cache is empty', () async {
-      when(() => local.hasProducts()).thenAnswer((_) async => false);
-      expect(await repository.hasCachedCatalog(), isFalse);
-    });
-
-    test('is true when the local cache has products', () async {
-      when(() => local.hasProducts()).thenAnswer((_) async => true);
-      expect(await repository.hasCachedCatalog(), isTrue);
-    });
-  });
-
   group('loadCachedCatalog', () {
     test('reads directly from local storage without touching Firestore', () async {
       when(() => local.getProducts()).thenAnswer((_) async => [product]);

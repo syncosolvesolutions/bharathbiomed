@@ -15,9 +15,10 @@ class CatalogSnapshot {
   final List<String> departments;
 }
 
-/// The app is used offline by default: the catalog is only ever read from the
-/// local cache ([loadCachedCatalog]) unless the user explicitly triggers
-/// [sync], which is the only method that talks to Firestore.
+/// The catalog screen only ever reads from the local cache
+/// ([loadCachedCatalog]); [sync] is the only method that talks to Firestore,
+/// called after sign-in and automatically whenever connectivity returns
+/// (see `app.dart`).
 class ProductRepository {
   ProductRepository({
     ProductRemoteDataSource? remote,
@@ -30,8 +31,6 @@ class ProductRepository {
   final ProductRemoteDataSource _remote;
   final ProductLocalDataSource _local;
   final Future<void> Function(List<String> imageUrls) _precacheImages;
-
-  Future<bool> hasCachedCatalog() => _local.hasProducts();
 
   Future<CatalogSnapshot> loadCachedCatalog() async {
     debugPrint('ProductRepository.loadCachedCatalog: loading catalog from local cache');

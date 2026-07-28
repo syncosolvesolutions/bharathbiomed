@@ -35,19 +35,16 @@ void main() {
     );
   }
 
-  testWidgets('leads with Continue Offline and no pre-filled credential fields', (tester) async {
+  testWidgets('always shows the sign-in form with no Continue Offline path', (tester) async {
     await tester.pumpWidget(buildSubject());
     await tester.pumpAndSettle();
 
-    expect(find.text('Continue Offline'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNothing);
+    expect(find.text('Continue Offline'), findsNothing);
+    expect(find.byType(TextFormField), findsNWidgets(2));
   });
 
-  testWidgets('revealing the sign-in section shows empty email/password fields', (tester) async {
+  testWidgets('sign-in fields start empty', (tester) async {
     await tester.pumpWidget(buildSubject());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Sign in to download / sync data'));
     await tester.pumpAndSettle();
 
     final fields = tester.widgetList<TextFormField>(find.byType(TextFormField)).toList();
@@ -55,19 +52,5 @@ void main() {
     for (final field in fields) {
       expect(field.controller!.text, isEmpty);
     }
-  });
-
-  testWidgets('tapping Continue Offline with no cached data prompts to sign in and sync', (tester) async {
-    when(() => productRepository.hasCachedCatalog()).thenAnswer((_) async => false);
-
-    await tester.pumpWidget(buildSubject());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Continue Offline'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('No data yet'), findsOneWidget);
-    // The sign-in section should now be expanded so the user can act on the prompt.
-    expect(find.byType(TextFormField), findsNWidgets(2));
   });
 }

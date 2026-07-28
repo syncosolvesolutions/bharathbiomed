@@ -9,13 +9,13 @@ import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
-import '../../data/providers.dart';
 import '../catalog/catalog_controller.dart';
 import 'auth_controller.dart';
 
-/// The app is used offline by default, so this screen always leads with the
-/// offline path (uses whatever catalog data was last synced). Signing in is
-/// a secondary action, only needed to download/refresh that data.
+/// Signing in is required before the app can be used at all. Once signed
+/// in, the session persists locally (Firebase Auth's own persistence) and
+/// the app keeps working fully offline using whatever was last synced — see
+/// [CatalogController] and the connectivity-triggered sync in `app.dart`.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -27,7 +27,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _signInSectionExpanded = false;
 
   @override
   void dispose() {
@@ -37,35 +36,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
-  /// Primary path for this app: skip auth entirely and open the catalog
-  /// using whatever was last downloaded to this device. If nothing has ever
-  /// been synced, there's nothing to show offline, so send the user to the
-  /// sign-in section instead.
-  Future<void> _continueOffline() async {
-    debugPrint('LoginScreen._continueOffline: checking for cached catalog data');
-    final hasData = await ref.read(productRepositoryProvider).hasCachedCatalog();
-    debugPrint('LoginScreen._continueOffline: hasCachedCatalog returned hasData=$hasData');
-    if (!mounted) return;
-
-    if (!hasData) {
-      setState(() => _signInSectionExpanded = true);
-      QuickAlert.show(
-        context: context,
-        type: QuickAlertType.info,
-        title: 'No data yet',
-        text: 'No catalog data has been downloaded to this device yet. Please sign in and sync data first.',
-      );
-      return;
-    }
-
-    await ref.read(catalogControllerProvider.future);
-    if (!mounted) return;
-    context.go('/catalog');
-  }
-
-  /// Secondary path: authenticate against Firebase, then immediately sync
-  /// so the freshly-signed-in user has current data available offline
-  /// afterwards.
+  /// Authenticate against Firebase, then immediately sync so the
+  /// freshly-signed-in user has current data available offline afterwards.
   Future<void> _login() async {
     debugPrint('LoginScreen._login: form submitted, username=${_emailController.text.trim()}');
     if (!_formKey.currentState!.validate()) return;
@@ -241,17 +213,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       },
                     ),
                     const SizedBox(height: 20),
-                    Text('Offline Mode', style: Theme.of(context).textTheme.headlineSmall),
+                    Text('Sign In', style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 8),
                     Text(
-                      'This app works fully offline using the last data you synced.',
+                      'Once signed in, the app keeps working offline using your last synced data.',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _continueOffline,
-                      child: const Text('Continue Offline'),
                     ),
                   ],
                 ),
@@ -260,69 +227,63 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                 child: Column(
                   children: [
-                    if (!_signInSectionExpanded)
-                      TextButton(
-                        onPressed: () => setState(() => _signInSectionExpanded = true),
-                        child: const Text('Sign in to download / sync data'),
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardTheme.color,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.06),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text('Sign in to sync data', style: Theme.of(context).textTheme.titleMedium),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _emailController,
-                              decoration: const InputDecoration(
-                                labelText: 'Email or Username',
-                                helperText: 'Admin: your email. Medical Reps: the username your admin gave you.',
-                              ),
-                              validator: Validators.loginIdentifier,
-                            ),
-                            const SizedBox(height: 12),
-                            TextFormField(
-                              controller: _passwordController,
-                              decoration: const InputDecoration(labelText: 'Password'),
-                              obscureText: true,
-                              validator: Validators.password,
-                            ),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton(
-                                onPressed: _forgotPassword,
-                                child: const Text('Forgot password?'),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Center(
-                              child: ElevatedButton(
-                                onPressed: isSigningIn ? null : _login,
-                                child: isSigningIn
-                                    ? const SizedBox(
-                                        height: 16,
-                                        width: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Text('Sign In & Sync'),
-                              ),
-                            ),
-                          ],
-                        ),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardTheme.color,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('Sign in to sync data', style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _emailController,
+                            decoration: const InputDecoration(
+                              labelText: 'Email or Username',
+                              helperText: 'Admin: your email. Medical Reps: the username your admin gave you.',
+                            ),
+                            validator: Validators.loginIdentifier,
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _passwordController,
+                            decoration: const InputDecoration(labelText: 'Password'),
+                            obscureText: true,
+                            validator: Validators.password,
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _forgotPassword,
+                              child: const Text('Forgot password?'),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Center(
+                            child: ElevatedButton(
+                              onPressed: isSigningIn ? null : _login,
+                              child: isSigningIn
+                                  ? const SizedBox(
+                                      height: 16,
+                                      width: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Text('Sign In & Sync'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     Wrap(
                       alignment: WrapAlignment.center,
