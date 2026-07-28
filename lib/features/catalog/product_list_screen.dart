@@ -11,12 +11,16 @@ import '../admin/admin_access.dart';
 import '../auth/auth_controller.dart';
 import '../profile/birthday_celebration.dart';
 import '../profile/profile_controller.dart';
+import '../sync/sync_controller.dart';
 import 'catalog_controller.dart';
 import 'selection_controller.dart';
 import 'widgets/category_section.dart';
 
 /// Main catalog screen: products grouped by department, with multi-select
 /// (feeding the slideshow) and a manual sync button to refresh from Firestore.
+/// The app-wide progress overlay (see app.dart/SyncController) covers the
+/// screen while this runs, so this button just needs to stay disabled and
+/// report the end result.
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key});
 
@@ -25,16 +29,13 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
-  bool _isSyncing = false;
-
   Future<void> _syncCatalog() async {
     debugPrint('ProductListScreen._syncCatalog: sync button pressed');
-    setState(() => _isSyncing = true);
 
     String resultMessage;
     try {
-      debugPrint('ProductListScreen._syncCatalog: calling catalogController.sync');
-      await ref.read(catalogControllerProvider.notifier).sync();
+      debugPrint('ProductListScreen._syncCatalog: calling syncController.startSync');
+      await ref.read(syncControllerProvider.notifier).startSync();
       debugPrint('ProductListScreen._syncCatalog: sync succeeded');
       resultMessage = 'Data synced successfully.';
     } catch (error, stackTrace) {
@@ -46,7 +47,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     }
 
     if (!mounted) return;
-    setState(() => _isSyncing = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(resultMessage)));
   }
 
@@ -92,6 +92,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     final catalog = ref.watch(catalogControllerProvider);
     final isAdmin = ref.watch(isAdminProvider);
     final isSignedIn = ref.watch(authControllerProvider).value != null;
+    final isSyncing = ref.watch(syncControllerProvider).isSyncing;
     final Employee? myProfile = isAdmin ? null : ref.watch(myEmployeeProfileProvider).value;
 
     // Idempotent: maybeShowBirthdayCelebration only actually shows once per
@@ -161,7 +162,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               onPressed: _logout,
             ),
           IconButton(
-            icon: _isSyncing
+            icon: isSyncing
                 ? const SizedBox(
                     height: 20,
                     width: 20,
@@ -169,7 +170,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                   )
                 : const Icon(Icons.download_sharp),
             tooltip: 'Sync catalog',
-            onPressed: _isSyncing ? null : _syncCatalog,
+            onPressed: isSyncing ? null : _syncCatalog,
             color: AppTheme.success,
           ),
         ],

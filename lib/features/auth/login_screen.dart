@@ -9,13 +9,13 @@ import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/validators.dart';
-import '../catalog/catalog_controller.dart';
+import '../sync/sync_controller.dart';
 import 'auth_controller.dart';
 
 /// Signing in is required before the app can be used at all. Once signed
 /// in, the session persists locally (Firebase Auth's own persistence) and
 /// the app keeps working fully offline using whatever was last synced — see
-/// [CatalogController] and the connectivity-triggered sync in `app.dart`.
+/// [SyncController] and the connectivity-triggered update check in `app.dart`.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -58,12 +58,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
     debugPrint('LoginScreen._login: signIn succeeded');
 
-    // Reuse the same sync path as the in-catalog sync button, so the very
-    // first sign-in also downloads the catalog for later offline use.
+    // Reuse the same sync path as the in-catalog sync button (with the same
+    // app-wide progress overlay — see app.dart), so the very first sign-in
+    // also downloads the catalog for later offline use.
     try {
-      debugPrint('LoginScreen._login: calling catalogController.sync');
-      await ref.read(catalogControllerProvider.notifier).sync();
-      debugPrint('LoginScreen._login: catalog sync succeeded');
+      debugPrint('LoginScreen._login: calling syncController.startSync');
+      await ref.read(syncControllerProvider.notifier).startSync();
+      debugPrint('LoginScreen._login: sync succeeded');
       if (!mounted) return;
       await QuickAlert.show(
         context: context,

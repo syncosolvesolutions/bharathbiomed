@@ -3,14 +3,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/providers.dart';
 import '../../data/repositories/product_repository.dart';
+import '../admin/admin_access.dart';
+import '../auth/auth_controller.dart';
 import '../doctors/doctor_controller.dart';
 
 /// Holds the catalog (products + departments) currently shown on screen.
 final catalogControllerProvider = AsyncNotifierProvider<CatalogController, CatalogSnapshot>(CatalogController.new);
 
+/// Reports progress after each step of [CatalogController.sync] finishes, so
+/// a caller (see `features/sync/sync_controller.dart`) can show a percentage
+/// instead of a bare spinner.
+typedef SyncProgressCallback = void Function(int completed, int total, String label);
+
 /// Drives the catalog screen. The app is offline-first, so [build] only ever
 /// reads the local cache; [sync] is the single place that talks to Firestore,
-/// triggered explicitly by the user (login screen or the sync button).
+/// triggered explicitly by the user (login screen, the sync button, or the
+/// "new data available" sync prompt — see `features/sync/sync_controller.dart`).
 class CatalogController extends AsyncNotifier<CatalogSnapshot> {
   @override
   Future<CatalogSnapshot> build() {
@@ -18,53 +26,76 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
     return ref.read(productRepositoryProvider).loadCachedCatalog();
   }
 
+  static const _totalSteps = 6;
+
   /// Downloads the latest catalog from Firestore and overwrites the local
-  /// cache. Deliberately does NOT touch [state] on failure so a previously
-  /// synced catalog stays on screen instead of being replaced by an error
-  /// view — callers should catch and report the failure themselves.
-  Future<void> sync() async {
+  /// cache, then pushes every locally-queued offline record (usage sessions,
+  /// doctor change requests, visit logs, an MR's visit plan) and refreshes
+  /// the doctor list — both directions, in one call. Deliberately does NOT
+  /// touch [state] on failure of the catalog step so a previously synced
+  /// catalog stays on screen instead of being replaced by an error view —
+  /// callers should catch and report the failure themselves. Every other
+  /// step is best-effort: one failing must never block or mask the others.
+  Future<void> sync({SyncProgressCallback? onProgress}) async {
     debugPrint('CatalogController.sync: starting catalog sync with Firestore');
+    var completed = 0;
+    void report(String label) => onProgress?.call(completed, _totalSteps, label);
+
+    report('Downloading catalog…');
     final snapshot = await ref.read(productRepositoryProvider).sync();
     debugPrint('CatalogController.sync: catalog sync succeeded');
     state = AsyncData(snapshot);
+    completed++;
 
-    // Best-effort: this is the one point this app talks to the server
-    // without the user having explicitly asked for *this* — piggybacking on
-    // an action they did explicitly ask for (sync) rather than uploading on
-    // its own whenever connectivity appears. A failure here must never mask
-    // the catalog sync succeeding.
+    report('Uploading usage data…');
     try {
       debugPrint('CatalogController.sync: uploading pending usage sessions');
       await ref.read(usageSessionRepositoryProvider).uploadPending();
       debugPrint('CatalogController.sync: uploadPending succeeded');
     } catch (error) {
       debugPrint('CatalogController.sync: uploadPending failed error=$error');
-      // Intentionally ignored — see comment above.
     }
+    completed++;
 
-    // Same best-effort treatment for the doctors feature's offline queue —
-    // this is the "sync everything in the evening" button (requirement
-    // 11/12), so it should also push whatever an MR queued locally today
-    // (doctor create/edit requests, visit/feedback logs) and refresh their
-    // assigned-doctors cache, without letting any one of those steps block
-    // or fail the others.
+    report('Uploading doctor requests…');
     try {
       debugPrint('CatalogController.sync: uploading pending doctor change requests');
       await ref.read(doctorChangeRequestRepositoryProvider).uploadPending();
     } catch (error) {
       debugPrint('CatalogController.sync: doctor change request uploadPending failed error=$error');
     }
+    completed++;
+
+    report('Uploading visit logs…');
     try {
       debugPrint('CatalogController.sync: uploading pending doctor visit logs');
       await ref.read(doctorVisitLogRepositoryProvider).uploadPending();
     } catch (error) {
       debugPrint('CatalogController.sync: doctor visit log uploadPending failed error=$error');
     }
+    completed++;
+
+    report('Uploading visit plan…');
+    final mrUid = ref.read(isAdminProvider) ? null : ref.read(authControllerProvider).value?.uid;
+    if (mrUid != null) {
+      try {
+        debugPrint('CatalogController.sync: pushing unsynced visit plan');
+        await ref.read(doctorVisitPlanRepositoryProvider).pushUnsynced(mrUid);
+      } catch (error) {
+        debugPrint('CatalogController.sync: visit plan pushUnsynced failed error=$error');
+      }
+    }
+    completed++;
+
+    report('Downloading doctor list…');
     try {
       debugPrint('CatalogController.sync: syncing doctor list');
       await ref.read(doctorControllerProvider.notifier).sync();
     } catch (error) {
       debugPrint('CatalogController.sync: doctor sync failed error=$error');
     }
+    completed++;
+
+    onProgress?.call(completed, _totalSteps, 'Sync complete');
   }
 }

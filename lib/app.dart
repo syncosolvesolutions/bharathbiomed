@@ -7,12 +7,12 @@ import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/connectivity/connectivity_provider.dart';
-import 'core/error/app_logger.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_controller.dart';
-import 'features/catalog/catalog_controller.dart';
+import 'features/sync/sync_controller.dart';
+import 'features/sync/sync_overlay.dart';
 import 'features/tracking/usage_tracking_service.dart';
 
 /// App root: theme + go_router wiring, plus the app-lifecycle hooks that
@@ -56,11 +56,11 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
       case AppLifecycleState.resumed:
         tracking.handleAppResumed(ref.read(authControllerProvider).value);
         // Covers reopening the app when it was already online (so the
-        // connectivity listener above never sees a live offline→online
+        // connectivity listener below never sees a live offline→online
         // edge) — e.g. it was backgrounded while offline and connectivity
         // came back while it wasn't running at all.
         final connectivity = ref.read(connectivityProvider).value;
-        if (connectivity != null && !NetworkStatus.isOffline(connectivity)) _autoSync('app resumed online');
+        if (connectivity != null && !NetworkStatus.isOffline(connectivity)) _checkForUpdates('app resumed online');
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
         tracking.handleAppPaused();
@@ -70,47 +70,45 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
     }
   }
 
-  /// Fires the same pull-and-push sync the login screen and manual sync
-  /// button use, but automatically — the signed-in user just needs
-  /// connectivity, no explicit tap. Best-effort: failures are logged, not
-  /// surfaced, since this runs with no UI to report to.
-  void _autoSync(String reason) {
+  /// Checks whether there's anything to sync (new server data, and/or data
+  /// queued locally) and — if so — surfaces the tappable banner from
+  /// [SyncAvailableBanner]. Never syncs by itself: the actual pull-and-push
+  /// only runs when the signed-in user taps the banner (or the manual sync
+  /// button), per [SyncController.startSync].
+  void _checkForUpdates(String reason) {
     if (ref.read(authControllerProvider).value == null) return;
-    debugPrint('BharathBioMedApp._autoSync: triggering sync ($reason)');
-    unawaited(
-      ref.read(catalogControllerProvider.notifier).sync().catchError((Object error, StackTrace stackTrace) {
-        AppLogger.error('BharathBioMedApp', 'auto-sync failed ($reason)', error: error, stackTrace: stackTrace);
-      }),
-    );
+    debugPrint('BharathBioMedApp._checkForUpdates: checking for updates ($reason)');
+    unawaited(ref.read(syncControllerProvider.notifier).checkForUpdates());
   }
 
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
+    final syncState = ref.watch(syncControllerProvider);
 
     // Covers cold start with an already-persisted session (no lifecycle
     // transition fires in that case, since the app starts "resumed") and a
-    // fresh sign-in while already running.
+    // fresh sign-in while already running. Also the first point a
+    // just-resolved signed-in session can trigger an update check.
     ref.listen<AsyncValue<User?>>(authControllerProvider, (previous, next) {
       final user = next.value;
       if (user != null) {
         ref.read(usageTrackingServiceProvider).handleAppResumed(user);
+        _checkForUpdates('auth resolved');
       }
     });
 
-    // Requirement: a signed-in user works offline when there's no network,
-    // and gets synced (both pulling fresh data and pushing anything queued
-    // locally) as soon as connectivity comes back — without needing to open
-    // the app to a specific screen or tap a button. Only fires on a genuine
-    // offline→online edge (both `previous` and `next` must already have a
-    // value), so it never double-fires alongside the explicit sync that
-    // already happens right after sign-in.
+    // A signed-in user works offline when there's no network; as soon as
+    // connectivity comes back, check whether there's anything new to sync
+    // and — if so — show the tappable banner rather than syncing silently.
+    // Only fires on a genuine offline→online edge (both `previous` and
+    // `next` must already have a value).
     ref.listen<AsyncValue<List<ConnectivityResult>>>(connectivityProvider, (previous, next) {
       final previousResults = previous?.value;
       final nextResults = next.value;
       if (previousResults == null || nextResults == null) return;
       final cameBackOnline = NetworkStatus.isOffline(previousResults) && !NetworkStatus.isOffline(nextResults);
-      if (cameBackOnline) _autoSync('connectivity restored');
+      if (cameBackOnline) _checkForUpdates('connectivity restored');
     });
 
     return MaterialApp.router(
@@ -124,7 +122,14 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
         return GestureDetector(
           onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
           behavior: HitTestBehavior.opaque,
-          child: child,
+          child: Stack(
+            children: [
+              if (child != null) child,
+              if (syncState.availability.hasSomethingToSync && !syncState.isSyncing)
+                const Positioned(top: 0, left: 0, right: 0, child: SyncAvailableBanner()),
+              if (syncState.progress != null) SyncProgressOverlay(progress: syncState.progress!),
+            ],
+          ),
         );
       },
     );

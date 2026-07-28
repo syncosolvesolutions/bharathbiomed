@@ -49,6 +49,10 @@ class UsageSessionRepository {
     return _local.close(id, DateTime.now());
   }
 
+  /// How many sessions are queued locally, waiting to reach Firestore —
+  /// used by the sync prompt to know there's something to push.
+  Future<int> countPendingUpload() async => (await _local.getUnsynced()).length;
+
   /// Best-effort: never lets a telemetry upload failure interrupt whatever
   /// triggered it (the catalog sync).
   Future<void> uploadPending() async {

@@ -80,6 +80,26 @@ class ProductRepository {
     return CatalogSnapshot(products: products, departments: departments);
   }
 
+  /// Fetches the remote catalog (same reads [sync] would do) and diffs it
+  /// against the local cache instead of overwriting it — lets the sync
+  /// prompt only show "update available" when something actually changed.
+  /// Products are compared by id (a plain collection `.get()` has no
+  /// guaranteed order), departments by list equality (a single ordered array
+  /// field, so order is meaningful and stable).
+  Future<bool> hasRemoteChanges() async {
+    debugPrint('ProductRepository.hasRemoteChanges: fetching remote catalog to diff against local cache');
+    final remoteProducts = await _remote.fetchProducts();
+    final remoteDepartments = await _remote.fetchDepartments();
+    final localProducts = await _local.getProducts();
+    final localDepartments = await _local.getDepartments();
+
+    final remoteById = {for (final product in remoteProducts) product.id: product};
+    final localById = {for (final product in localProducts) product.id: product};
+    final changed = !mapEquals(remoteById, localById) || !listEquals(remoteDepartments, localDepartments);
+    debugPrint('ProductRepository.hasRemoteChanges: changed=$changed');
+    return changed;
+  }
+
   /// Live read straight from Firestore, bypassing the local cache — used by
   /// the admin section, which must always act on current server data rather
   /// than whatever this device last synced.

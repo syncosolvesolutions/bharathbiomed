@@ -43,6 +43,10 @@ class DoctorVisitPlanRepository {
     }
   }
 
+  /// Whether this MR's plan has an edit queued locally, waiting to reach
+  /// Firestore — used by the sync prompt to know there's something to push.
+  Future<bool> hasPendingUpload(String mrUid) => _local.hasUnsyncedVisitPlan(mrUid);
+
   Future<void> pushUnsynced(String mrUid) async {
     debugPrint('DoctorVisitPlanRepository.pushUnsynced: mrUid=$mrUid');
     if (!await _local.hasUnsyncedVisitPlan(mrUid)) return;

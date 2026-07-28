@@ -105,6 +105,49 @@ void main() {
     });
   });
 
+  group('hasRemoteChanges', () {
+    test('is false when remote products/departments match the local cache, regardless of order', () async {
+      const product2 = Product(
+        id: 'p2',
+        name: 'Ibuprofen',
+        info: 'Pain relief',
+        departments: {'General': 1},
+        imageUrl: 'https://example.com/p2.png',
+      );
+      when(() => remote.fetchProducts()).thenAnswer((_) async => [product2, product]);
+      when(() => remote.fetchDepartments()).thenAnswer((_) async => ['General']);
+      when(() => local.getProducts()).thenAnswer((_) async => [product, product2]);
+      when(() => local.getDepartments()).thenAnswer((_) async => ['General']);
+
+      expect(await repository.hasRemoteChanges(), isFalse);
+    });
+
+    test('is true when a product differs between remote and local', () async {
+      const updatedProduct = Product(
+        id: 'p1',
+        name: 'Paracetamol',
+        info: 'Updated info',
+        departments: {'General': 0},
+        imageUrl: 'https://example.com/p1.png',
+      );
+      when(() => remote.fetchProducts()).thenAnswer((_) async => [updatedProduct]);
+      when(() => remote.fetchDepartments()).thenAnswer((_) async => ['General']);
+      when(() => local.getProducts()).thenAnswer((_) async => [product]);
+      when(() => local.getDepartments()).thenAnswer((_) async => ['General']);
+
+      expect(await repository.hasRemoteChanges(), isTrue);
+    });
+
+    test('is true when departments differ', () async {
+      when(() => remote.fetchProducts()).thenAnswer((_) async => [product]);
+      when(() => remote.fetchDepartments()).thenAnswer((_) async => ['General', 'Cardiology']);
+      when(() => local.getProducts()).thenAnswer((_) async => [product]);
+      when(() => local.getDepartments()).thenAnswer((_) async => ['General']);
+
+      expect(await repository.hasRemoteChanges(), isTrue);
+    });
+  });
+
   group('admin operations', () {
     test('fetchLiveCatalog reads directly from Firestore, not the local cache', () async {
       when(() => remote.fetchProducts()).thenAnswer((_) async => [product]);

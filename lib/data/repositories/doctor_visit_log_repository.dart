@@ -43,6 +43,10 @@ class DoctorVisitLogRepository {
 
   Future<List<DoctorVisitLog>> loadForMr(String mrUid) => _local.getForMr(mrUid);
 
+  /// How many visit logs are queued locally, waiting to reach Firestore —
+  /// used by the sync prompt to know there's something to push.
+  Future<int> countPendingUpload() async => (await _local.getUnsynced()).length;
+
   Future<void> uploadPending() async {
     debugPrint('DoctorVisitLogRepository.uploadPending: checking for unsynced logs');
     final pending = await _local.getUnsynced();

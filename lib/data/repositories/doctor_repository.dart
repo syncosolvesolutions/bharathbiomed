@@ -34,6 +34,21 @@ class DoctorRepository {
     return doctors;
   }
 
+  /// Fetches the remote doctor list (scoped the same way [sync] would be)
+  /// and diffs it against the local cache instead of overwriting it — see
+  /// [ProductRepository.hasRemoteChanges] for why this pattern is used
+  /// instead of a cheaper metadata check.
+  Future<bool> hasRemoteChanges({String? mrUid}) async {
+    debugPrint('DoctorRepository.hasRemoteChanges: fetching remote doctors to diff against local cache mrUid=$mrUid');
+    final remote = mrUid == null ? await _remote.fetchAll() : await _remote.fetchAssignedTo(mrUid);
+    final local = await _local.getDoctors();
+    final remoteById = {for (final doctor in remote) doctor.id: doctor};
+    final localById = {for (final doctor in local) doctor.id: doctor};
+    final changed = !mapEquals(remoteById, localById);
+    debugPrint('DoctorRepository.hasRemoteChanges: changed=$changed');
+    return changed;
+  }
+
   /// Admin-only: creates a doctor outright (no approval needed — see
   /// requirement 1). Auto-assigns nobody unless [doctor.assignedMrUid] is set.
   Future<String> createDoctor(Doctor doctor) {
