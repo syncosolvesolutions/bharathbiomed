@@ -6,7 +6,10 @@ import * as logger from "firebase-functions/logger";
 // side. That client-side check only controls what the UI shows; this is the
 // check that actually matters, since it runs on the server and can't be
 // bypassed by a modified client.
-const ADMIN_EMAILS = new Set(["bharathbiomedpharma@gmail.com"]);
+const ADMIN_EMAILS = new Set([
+  "bharathbiomedpharma@gmail.com",
+  "sudhakar.gotte@bharathbiomedpharma.com",
+]);
 
 /**
  * Synthetic email domain for Medical Representative accounts. MRs log in

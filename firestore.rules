@@ -14,7 +14,10 @@ service cloud.firestore {
     // Mirrors the allowlist in lib/core/auth/admin_access.dart and
     // functions/src/adminAccess.ts. Keep all three in sync.
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == 'bharathbiomedpharma@gmail.com';
+      return isSignedIn() && request.auth.token.email in [
+        'bharathbiomedpharma@gmail.com',
+        'sudhakar.gotte@bharathbiomedpharma.com'
+      ];
     }
 
     // Catalog data: every signed-in user (reps and admin alike) can read it
