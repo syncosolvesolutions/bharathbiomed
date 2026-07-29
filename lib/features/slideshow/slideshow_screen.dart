@@ -1,16 +1,43 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:widget_zoom/widget_zoom.dart';
 
+import '../../core/utils/app_orientation.dart';
 import '../../domain/models/product.dart';
 
 /// Full-screen, swipeable, pinch-to-zoom carousel over the products the user
-/// selected on the catalog screen.
-class SlideshowScreen extends StatelessWidget {
+/// selected on the catalog screen. Unlike the rest of the app (which
+/// supports portrait and landscape — see main.dart), this screen forces
+/// landscape while it's on screen: the product photos and this carousel's
+/// layout (`AspectRatio(16/9)` below, height-driven `CarouselOptions`) are
+/// both landscape-shaped, and restores the app's normal orientation set on
+/// exit rather than leaving the device stuck in landscape.
+class SlideshowScreen extends StatefulWidget {
   const SlideshowScreen({super.key, required this.selectedProducts});
 
   final List<Product> selectedProducts;
+
+  @override
+  State<SlideshowScreen> createState() => _SlideshowScreenState();
+}
+
+class _SlideshowScreenState extends State<SlideshowScreen> {
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setPreferredOrientations(defaultOrientations);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +52,7 @@ class SlideshowScreen extends StatelessWidget {
               autoPlay: false,
               enableInfiniteScroll: false,
             ),
-            items: selectedProducts.map((product) {
+            items: widget.selectedProducts.map((product) {
               return Builder(
                 builder: (context) {
                   return WidgetZoom(

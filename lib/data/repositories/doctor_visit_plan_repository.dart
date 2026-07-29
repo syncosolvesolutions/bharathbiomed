@@ -56,4 +56,34 @@ class DoctorVisitPlanRepository {
     await _local.markVisitPlanSynced(mrUid);
     debugPrint('DoctorVisitPlanRepository.pushUnsynced: pushed mrUid=$mrUid');
   }
+
+  /// Submits the MR's *current server-side* plan for approval — fetches
+  /// fresh first (not the local cache) so a submission can't accidentally
+  /// carry stale content if another device edited it more recently. Needs
+  /// connectivity, unlike [save]: there's nothing meaningful to queue
+  /// offline for "submit whatever is currently on the server."
+  Future<DoctorVisitPlan> submitForApproval(String mrUid) async {
+    debugPrint('DoctorVisitPlanRepository.submitForApproval: mrUid=$mrUid');
+    final current = await _remote.fetch(mrUid);
+    final pending = current.copyAsPending();
+    await _remote.save(pending);
+    await _local.saveVisitPlan(pending, synced: true);
+    return pending;
+  }
+
+  /// Plans awaiting a manager decision, for the team approval screen —
+  /// mirrors [OrderRepository.fetchAll]/[fetchForEmployees]'s
+  /// global-vs-downline split.
+  Future<List<DoctorVisitPlan>> fetchAllPending() => _remote.fetchAllPending();
+
+  Future<List<DoctorVisitPlan>> fetchPendingForEmployees(List<String> mrUids) =>
+      _remote.fetchPendingForEmployees(mrUids);
+
+  /// `approve_requests`-gated in firestore.rules.
+  Future<void> approve(String mrUid, {required String approvedByUid}) =>
+      _remote.approve(mrUid, approvedByUid: approvedByUid);
+
+  /// `approve_requests`-gated in firestore.rules.
+  Future<void> reject(String mrUid, {required String approvedByUid, String? reason}) =>
+      _remote.reject(mrUid, approvedByUid: approvedByUid, reason: reason);
 }

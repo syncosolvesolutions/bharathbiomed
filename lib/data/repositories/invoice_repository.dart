@@ -1,4 +1,5 @@
 import '../../domain/models/invoice.dart';
+import '../../domain/models/payment.dart';
 import '../remote/invoice_remote_data_source.dart';
 
 /// Invoices — read-only from the client (see [InvoiceRemoteDataSource]);
@@ -13,4 +14,10 @@ class InvoiceRepository {
 
   /// `manage_invoices`-gated Cloud Function.
   Future<void> generate(String orderId) => _remote.generate(orderId);
+
+  Future<List<Payment>> fetchPayments(String invoiceId) => _remote.fetchPayments(invoiceId);
+
+  /// `manage_invoices`-gated Cloud Function.
+  Future<void> recordPayment(String invoiceId, {required double amount, String? notes}) =>
+      _remote.recordPayment(invoiceId, amount: amount, notes: notes);
 }

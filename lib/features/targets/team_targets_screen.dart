@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
+import '../../core/utils/report_export_service.dart';
+import '../../core/widgets/export_menu_button.dart';
 import '../team/team_access.dart';
 import 'team_targets_controller.dart';
 
@@ -14,13 +16,48 @@ import 'team_targets_controller.dart';
 class TeamTargetsScreen extends ConsumerWidget {
   const TeamTargetsScreen({super.key});
 
+  List<List<String>> _rows(List<EmployeeTargetProgress> entries) => entries
+      .map((entry) => [
+            entry.employee.displayName,
+            entry.progress.target?.targetValue.toStringAsFixed(2) ?? 'Not set',
+            entry.progress.achievement.toStringAsFixed(2),
+            '${(entry.progress.fraction * 100).round()}%',
+          ])
+      .toList();
+
+  Future<void> _exportCsv(WidgetRef ref, List<EmployeeTargetProgress> entries) {
+    return ref.read(reportExportServiceProvider).exportCsv(
+          filename: 'team_targets.csv',
+          headers: const ['Employee', 'Target', 'Achievement', 'Progress'],
+          rows: _rows(entries),
+        );
+  }
+
+  Future<void> _exportPdf(WidgetRef ref, List<EmployeeTargetProgress> entries) {
+    return ref.read(reportExportServiceProvider).exportSimpleTablePdf(
+          filename: 'team_targets.pdf',
+          title: 'Team Targets — Current Month',
+          headers: const ['Employee', 'Target', 'Achievement', 'Progress'],
+          rows: _rows(entries),
+        );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progressAsync = ref.watch(teamTargetsControllerProvider);
     final canManage = ref.watch(canManageTargetsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Team Targets')),
+      appBar: AppBar(
+        title: const Text('Team Targets'),
+        actions: [
+          if (progressAsync.value != null)
+            ExportMenuButton(
+              onExportCsv: () => _exportCsv(ref, progressAsync.value!),
+              onExportPdf: () => _exportPdf(ref, progressAsync.value!),
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.read(teamTargetsControllerProvider.notifier).refresh(),
         child: progressAsync.when(

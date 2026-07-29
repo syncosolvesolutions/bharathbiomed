@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/connectivity/connectivity_provider.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/router/app_router.dart';
+import 'core/tenant/tenant_config.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/sync/sync_controller.dart';
@@ -112,7 +113,7 @@ class _BharathBioMedAppState extends ConsumerState<BharathBioMedApp> with Widget
     });
 
     return MaterialApp.router(
-      title: 'Bharath Biomed Pharma',
+      title: currentTenant.appName,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

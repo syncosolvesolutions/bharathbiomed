@@ -20,12 +20,12 @@ class AppDatabase {
   }
 
   Future<Database> _open() async {
-    debugPrint('AppDatabase._open: opening catalog.db at version 7');
+    debugPrint('AppDatabase._open: opening catalog.db at version 10');
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'catalog.db');
     final db = await openDatabase(
       path,
-      version: 7,
+      version: 10,
       onCreate: (db, version) async {
         debugPrint('AppDatabase._open.onCreate: creating fresh database schema version=$version');
         await _createCatalogTables(db);
@@ -34,6 +34,9 @@ class AppDatabase {
         await _createAgencyPharmacyTables(db);
         await _createOrderTables(db);
         await _createRcpaTable(db);
+        await _createExpenseClaimTable(db);
+        await _createLeaveRequestTable(db);
+        await _createComplianceLogTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         debugPrint('AppDatabase._open.onUpgrade: upgrading database oldVersion=$oldVersion newVersion=$newVersion');
@@ -56,6 +59,15 @@ class AppDatabase {
         }
         if (oldVersion < 7) {
           await db.execute("ALTER TABLE doctor_visit_logs ADD COLUMN samplesGiven TEXT NOT NULL DEFAULT '{}'");
+        }
+        if (oldVersion < 8) {
+          await _createExpenseClaimTable(db);
+        }
+        if (oldVersion < 9) {
+          await _createLeaveRequestTable(db);
+        }
+        if (oldVersion < 10) {
+          await _createComplianceLogTable(db);
         }
       },
     );
@@ -206,6 +218,49 @@ class AppDatabase {
     debugPrint('AppDatabase._createRcpaTable: creating rcpa_entries table');
     await db.execute('''
       CREATE TABLE rcpa_entries (
+        id TEXT PRIMARY KEY,
+        mrUid TEXT NOT NULL,
+        data TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// `expense_claims`: a queue of not-yet-uploaded MR-filed TA/DA claims,
+  /// same shape/rationale as `orders` — once uploaded, live status
+  /// (approved/rejected) is only ever read from Firestore directly
+  /// (`ExpenseClaimRepository.fetchMine`), not re-cached here.
+  Future<void> _createExpenseClaimTable(Database db) async {
+    debugPrint('AppDatabase._createExpenseClaimTable: creating expense_claims table');
+    await db.execute('''
+      CREATE TABLE expense_claims (
+        localId TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// `leave_requests`: a queue of not-yet-uploaded MR-filed leave requests —
+  /// identical shape to `expense_claims`.
+  Future<void> _createLeaveRequestTable(Database db) async {
+    debugPrint('AppDatabase._createLeaveRequestTable: creating leave_requests table');
+    await db.execute('''
+      CREATE TABLE leave_requests (
+        localId TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        synced INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  /// `compliance_logs`: a queue of not-yet-uploaded UCPMP compliance
+  /// records — identical shape to `rcpa_entries` (a JSON blob per row,
+  /// `mrUid` broken out as its own column).
+  Future<void> _createComplianceLogTable(Database db) async {
+    debugPrint('AppDatabase._createComplianceLogTable: creating compliance_logs table');
+    await db.execute('''
+      CREATE TABLE compliance_logs (
         id TEXT PRIMARY KEY,
         mrUid TEXT NOT NULL,
         data TEXT NOT NULL,

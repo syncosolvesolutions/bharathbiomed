@@ -8,10 +8,18 @@ enum Permission {
   approveOrders,
   dispatchOrders,
   manageInvoices,
+
+  /// Gates approving/rejecting a submitted weekly visit (beat/route) plan
+  /// — see `firestore.rules`' `DoctorVisitPlans` rule and
+  /// `VisitPlanApprovalController`. Despite the generic name, this is
+  /// currently only checked for that one workflow, not `DoctorChangeRequests`
+  /// /`EntityChangeRequests` (those stay gated to `isOfficeAdmin()`).
   approveRequests,
   viewGlobalData,
   manageAgencies,
   manageTargets,
+  approveExpenses,
+  approveLeave,
 }
 
 extension PermissionValue on Permission {
@@ -24,6 +32,8 @@ extension PermissionValue on Permission {
         Permission.viewGlobalData => 'view_global_data',
         Permission.manageAgencies => 'manage_agencies',
         Permission.manageTargets => 'manage_targets',
+        Permission.approveExpenses => 'approve_expenses',
+        Permission.approveLeave => 'approve_leave',
       };
 
   String get label => switch (this) {
@@ -35,6 +45,8 @@ extension PermissionValue on Permission {
         Permission.viewGlobalData => 'View Global Data (all users/regions)',
         Permission.manageAgencies => 'Manage Agencies & Pharmacies (update, not create)',
         Permission.manageTargets => 'Set Monthly Targets (for reporting-chain downline)',
+        Permission.approveExpenses => 'Approve Expense Claims (for reporting-chain downline)',
+        Permission.approveLeave => 'Approve Leave Requests (for reporting-chain downline)',
       };
 }
 

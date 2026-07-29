@@ -10,6 +10,7 @@ import '../../domain/models/employee.dart';
 import '../../domain/models/pharmacy.dart';
 import '../../domain/models/product.dart';
 import '../../features/admin/admin_home_screen.dart';
+import '../../features/admin_web/admin_web_shell.dart';
 import '../../features/admin/admin_notifications_screen.dart';
 import '../../features/admin/department_products_screen.dart';
 import '../../features/admin/designation_form_screen.dart';
@@ -20,7 +21,9 @@ import '../../features/admin/employee_sessions_screen.dart';
 import '../../features/admin/manage_departments_screen.dart';
 import '../../features/admin/manage_designations_screen.dart';
 import '../../features/admin/manage_employees_screen.dart';
+import '../../features/admin/expiry_alerts_screen.dart';
 import '../../features/admin/manage_inventory_screen.dart';
+import '../../features/admin/product_batches_screen.dart';
 import '../../features/admin/product_form_screen.dart';
 import '../../features/admin/usage_dashboard_screen.dart';
 import '../../features/auth/auth_controller.dart';
@@ -31,12 +34,25 @@ import '../../features/doctors/doctor_detail_screen.dart';
 import '../../features/doctors/doctor_form_screen.dart';
 import '../../features/doctors/mr_doctors_screen.dart';
 import '../../features/doctors/today_visits_screen.dart';
+import '../../features/doctors/visit_plan_approval_screen.dart';
 import '../../features/doctors/visit_plan_screen.dart';
 import '../../features/entity_requests/entity_requests_screen.dart';
+import '../../features/expenses/expense_claim_approval_screen.dart';
+import '../../features/expenses/expense_claim_form_screen.dart';
+import '../../features/expenses/my_expense_claims_screen.dart';
+import '../../features/leave/leave_request_approval_screen.dart';
+import '../../features/leave/leave_request_form_screen.dart';
+import '../../features/leave/my_leave_requests_screen.dart';
 import '../../features/legal/legal_content.dart';
 import '../../features/legal/legal_document_screen.dart';
 import '../../features/agencies/agencies_screen.dart';
 import '../../features/agencies/agency_form_screen.dart';
+import '../../features/attendance/attendance_dashboard_screen.dart';
+import '../../features/attendance/employee_attendance_screen.dart';
+import '../../features/attendance/my_attendance_screen.dart';
+import '../../features/compliance/compliance_dashboard_screen.dart';
+import '../../features/compliance/compliance_log_form_screen.dart';
+import '../../features/compliance/my_compliance_logs_screen.dart';
 import '../../features/orders/invoices_screen.dart';
 import '../../features/orders/my_orders_screen.dart';
 import '../../features/orders/order_approval_screen.dart';
@@ -142,6 +158,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Pharmacy) return '/pharmacies';
         case '/team/rcpa/detail':
           if (state.extra is! Employee) return '/team/rcpa';
+        case '/admin/inventory/batches':
+          if (state.extra is! Product) return '/admin/inventory';
+        case '/team/attendance/detail':
+          if (state.extra is! Employee) return '/team/attendance';
       }
 
       return null;
@@ -168,18 +188,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/legal/terms',
         builder: (context, state) =>
-            const LegalDocumentScreen(title: 'Terms & Conditions', sections: termsAndConditionsSections),
+            LegalDocumentScreen(title: 'Terms & Conditions', sections: termsAndConditionsSections()),
       ),
       GoRoute(
         path: '/legal/privacy',
-        builder: (context, state) =>
-            const LegalDocumentScreen(title: 'Privacy Policy', sections: privacyPolicySections),
+        builder: (context, state) => LegalDocumentScreen(title: 'Privacy Policy', sections: privacyPolicySections()),
       ),
       GoRoute(
         path: '/slideshow',
         builder: (context, state) => SlideshowScreen(selectedProducts: state.extra as List<Product>),
       ),
-      GoRoute(path: '/admin', builder: (context, state) => const AdminHomeScreen()),
+      // Web gets the wide-layout console (see features/admin_web/SKILL.md)
+      // instead of the mobile admin home screen; every route it reaches
+      // internally (state selection, not go_router navigation) is unchanged.
+      GoRoute(path: '/admin', builder: (context, state) => kIsWeb ? const AdminWebShell() : const AdminHomeScreen()),
       GoRoute(path: '/admin/departments', builder: (context, state) => const ManageDepartmentsScreen()),
       GoRoute(
         path: '/admin/departments/products',
@@ -211,6 +233,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ProductFormScreen(product: state.extra as Product),
       ),
       GoRoute(path: '/admin/inventory', builder: (context, state) => const ManageInventoryScreen()),
+      GoRoute(
+        path: '/admin/inventory/batches',
+        builder: (context, state) => ProductBatchesScreen(product: state.extra as Product),
+      ),
+      GoRoute(path: '/admin/inventory/expiry-alerts', builder: (context, state) => const ExpiryAlertsScreen()),
       GoRoute(path: '/admin/dashboard', builder: (context, state) => const UsageDashboardScreen()),
       GoRoute(
         path: '/admin/dashboard/sessions',
@@ -273,6 +300,33 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/team/rcpa/detail',
         builder: (context, state) => EmployeeRcpaEntriesScreen(employee: state.extra as Employee),
       ),
+      // Expense claims: an MR's own filed claims + form, plus the team
+      // approval queue (not admin-gated, same reasoning as /team/*).
+      GoRoute(path: '/expenses', builder: (context, state) => const MyExpenseClaimsScreen()),
+      GoRoute(path: '/expenses/add', builder: (context, state) => const ExpenseClaimFormScreen()),
+      GoRoute(path: '/team/expenses', builder: (context, state) => const ExpenseClaimApprovalScreen()),
+      // Visit plan (beat/route plan) approvals — the plan itself is edited
+      // at /doctors/plan; this is just the team review queue.
+      GoRoute(path: '/team/visit-plans', builder: (context, state) => const VisitPlanApprovalScreen()),
+      // Leave requests: an MR's own filed requests + form, plus the team
+      // approval queue (not admin-gated, same reasoning as /team/*).
+      GoRoute(path: '/leave', builder: (context, state) => const MyLeaveRequestsScreen()),
+      GoRoute(path: '/leave/add', builder: (context, state) => const LeaveRequestFormScreen()),
+      GoRoute(path: '/team/leave', builder: (context, state) => const LeaveRequestApprovalScreen()),
+      // Attendance: an MR's own derived attendance, plus the team dashboard
+      // (not admin-gated, same reasoning as /team/*).
+      GoRoute(path: '/attendance', builder: (context, state) => const MyAttendanceScreen()),
+      GoRoute(path: '/team/attendance', builder: (context, state) => const AttendanceDashboardScreen()),
+      GoRoute(
+        path: '/team/attendance/detail',
+        builder: (context, state) => EmployeeAttendanceScreen(employee: state.extra as Employee),
+      ),
+      // Compliance (UCPMP): an MR's own logged entries + form, plus the
+      // team per-doctor dashboard (not admin-gated, same reasoning as
+      // /team/*).
+      GoRoute(path: '/compliance', builder: (context, state) => const MyComplianceLogsScreen()),
+      GoRoute(path: '/compliance/add', builder: (context, state) => const ComplianceLogFormScreen()),
+      GoRoute(path: '/team/compliance', builder: (context, state) => const ComplianceDashboardScreen()),
     ],
   );
 });

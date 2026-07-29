@@ -1,0 +1,30 @@
+{
+  "tenantId": "bharathbiomed",
+  "appName": "Bharath Biomed Pharma",
+  "legalCompanyName": "Bharath Biomed Pharma",
+  "primaryColorHex": "0xFF3470B2",
+  "adminEmails": [
+    "bharathbiomedpharma@gmail.com",
+    "sudhakar.gotte@bharathbiomedpharma.com"
+  ],
+  "supportEmail": "swapna.balugu@gmail.com",
+  "defaultPassword": "Bharathbio@2026",
+  "defaultCountryCode": "91",
+  "jurisdiction": "India",
+  "ucpmpAnnualLimitPerDoctor": 0,
+  "taxLabel": "GST",
+  "taxRatePercent": 12,
+  "paymentTermsDays": 30,
+  "firebaseProjectId": "bharathbiomedpharma-6c6c3",
+  "androidApplicationId": "com.syncosolve.bharathbiomedpharma",
+  "iosBundleId": "com.syncosolve.bharathbiomedpharma",
+  "logoPath": "assets/bnewlogo.jpeg",
+  "splashLogoPath": "assets/blogo.png",
+  "designationLadder": [
+    "Medical Representative",
+    "Senior Medical Representative",
+    "Area Business Manager",
+    "Regional Business Manager",
+    "Zonal Business Manager"
+  ]
+}

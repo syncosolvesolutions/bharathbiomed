@@ -20,3 +20,18 @@ import from `features/`.
   informational (shown on the login screen); nothing in `features/` gates
   behavior on it. See `features/catalog/SKILL.md` for why.
 - `utils/validators.dart` — form-field validators shared across auth forms.
+- `tenant/tenant_config.dart` — `TenantConfig`/`currentTenant`: every value
+  that varies per pharma-company deployment. See its own doc comment and
+  `tenants/<tenantId>/tenant.json` / `scripts/apply_tenant.dart`.
+- `utils/report_export_service.dart` + `widgets/export_menu_button.dart` —
+  the shared "Export" action used by every dashboard that offers CSV/PDF
+  export (Usage Dashboard, RCPA Dashboard, Team Targets, Invoices). Both
+  hand off to the OS share sheet (`share_plus`/`printing`) rather than
+  writing to app storage — this app doesn't otherwise touch the
+  filesystem for user-facing files. `ExportMenuButton` owns its own
+  in-flight spinner and error snackbar; a call site only supplies the two
+  export callbacks (typically `ref.read(reportExportServiceProvider)
+  .exportCsv(...)`/`.exportSimpleTablePdf(...)` with that screen's own
+  row-building logic — see any of the four screens above for the pattern).
+  `exportSimpleTablePdf` only covers a single-table report; anything more
+  elaborate should build a `pw.Document` directly and call `sharePdf`.

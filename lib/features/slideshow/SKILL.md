@@ -16,6 +16,9 @@ depend on any controller or repository.
   been viewed once (e.g. right after a sync while online), it stays
   available offline afterwards. A full sync doesn't pre-warm this cache —
   only images actually rendered get cached.
-- This screen intentionally has no state management of its own — if you need
-  to add e.g. autoplay or reordering, keep it local `StatefulWidget` state
-  here rather than promoting it into a global controller.
+- This screen intentionally has no *data* state management of its own — its
+  only local `StatefulWidget` state is forcing landscape orientation on
+  enter and restoring the app's normal orientation set on exit (see
+  `initState`/`dispose`). If you need to add e.g. autoplay or reordering,
+  keep that local here too rather than promoting it into a global
+  controller.

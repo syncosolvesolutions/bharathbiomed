@@ -4,6 +4,7 @@ import 'repositories/admin_notifications_repository.dart';
 import 'repositories/admin_profile_repository.dart';
 import 'repositories/agency_repository.dart';
 import 'repositories/auth_repository.dart';
+import 'repositories/compliance_log_repository.dart';
 import 'repositories/designation_repository.dart';
 import 'repositories/device_token_repository.dart';
 import 'repositories/doctor_change_request_repository.dart';
@@ -12,7 +13,9 @@ import 'repositories/doctor_visit_log_repository.dart';
 import 'repositories/doctor_visit_plan_repository.dart';
 import 'repositories/employee_repository.dart';
 import 'repositories/entity_change_request_repository.dart';
+import 'repositories/expense_claim_repository.dart';
 import 'repositories/invoice_repository.dart';
+import 'repositories/leave_request_repository.dart';
 import 'repositories/order_repository.dart';
 import 'repositories/pharmacy_repository.dart';
 import 'repositories/product_repository.dart';
@@ -68,3 +71,9 @@ final invoiceRepositoryProvider = Provider<InvoiceRepository>((ref) => InvoiceRe
 final salesTargetRepositoryProvider = Provider<SalesTargetRepository>((ref) => SalesTargetRepository());
 
 final rcpaRepositoryProvider = Provider<RcpaRepository>((ref) => RcpaRepository());
+
+final expenseClaimRepositoryProvider = Provider<ExpenseClaimRepository>((ref) => ExpenseClaimRepository());
+
+final leaveRequestRepositoryProvider = Provider<LeaveRequestRepository>((ref) => LeaveRequestRepository());
+
+final complianceLogRepositoryProvider = Provider<ComplianceLogRepository>((ref) => ComplianceLogRepository());

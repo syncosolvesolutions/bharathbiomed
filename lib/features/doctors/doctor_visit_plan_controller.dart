@@ -40,4 +40,14 @@ class DoctorVisitPlanController extends AsyncNotifier<DoctorVisitPlan> {
     debugPrint('DoctorVisitPlanController.toggleDoctor: weekday=$weekdayKey doctorId=$doctorId');
     await ref.read(doctorVisitPlanRepositoryProvider).save(updated);
   }
+
+  /// Submits the current plan for manager approval — see
+  /// [DoctorVisitPlanRepository.submitForApproval]. Needs connectivity;
+  /// callers should catch and report a failure themselves (see
+  /// `VisitPlanScreen`'s submit button).
+  Future<void> submitForApproval() async {
+    debugPrint('DoctorVisitPlanController.submitForApproval: mrUid=$_mrUid');
+    final updated = await ref.read(doctorVisitPlanRepositoryProvider).submitForApproval(_mrUid);
+    state = AsyncData(updated);
+  }
 }

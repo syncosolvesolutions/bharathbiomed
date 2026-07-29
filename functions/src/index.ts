@@ -8,6 +8,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
 import {requireAdmin, requireOfficeAdmin, requirePermission, usernameToEmail} from "./adminAccess";
+import {PAYMENT_TERMS_DAYS, TAX_LABEL, TAX_RATE_PERCENT} from "./generatedTenantConfig";
 
 export {onUserOrgChanged, onDesignationOrgChanged} from "./hierarchy";
 
@@ -997,6 +998,15 @@ interface DispatchOrderRequest {
  * never double-decrement), and marks the order `dispatched`. Deliberately
  * does not block on insufficient stock — a negative `stockQuantity` is a
  * signal to reorder, not a hard error here.
+ *
+ * Also opportunistically decrements each product's `Batches` subcollection
+ * FEFO-style (First-Expiry-First-Out: oldest `expiryDate` consumed first) —
+ * see `ProductBatch` on the Flutter side. This is best-effort bookkeeping on
+ * top of the `stockQuantity` decrement above, not a replacement for it:
+ * `stockQuantity` is still what gates whether dispatch was allowed at all,
+ * so a product with no tracked batches (or fewer batches than the
+ * dispatched quantity) dispatches exactly as it always has — the shortfall
+ * just isn't attributed to any particular batch.
  */
 export const dispatchOrder = onCall(async (request) => {
   logger.info("dispatchOrder: called", {orderId: (request.data as Partial<DispatchOrderRequest>)?.orderId});
@@ -1021,10 +1031,36 @@ export const dispatchOrder = onCall(async (request) => {
     }
 
     const items = (order.items ?? []) as Array<{productId?: string; quantity?: number}>;
+
+    // Firestore transactions require every read before any write, so the
+    // FEFO-ordered batch list for each distinct product is read up front
+    // here, then consumed (written) in the loop below.
+    const batchSnapshotsByProduct = new Map<string, FirebaseFirestore.QuerySnapshot>();
+    for (const item of items) {
+      if (!item.productId || !item.quantity || batchSnapshotsByProduct.has(item.productId)) continue;
+      const batchesQuery = firestore
+        .collection("Products")
+        .doc(item.productId)
+        .collection("Batches")
+        .orderBy("expiryDate", "asc");
+      batchSnapshotsByProduct.set(item.productId, await transaction.get(batchesQuery));
+    }
+
     for (const item of items) {
       if (!item.productId || !item.quantity) continue;
       const productRef = firestore.collection("Products").doc(item.productId);
       transaction.update(productRef, {stockQuantity: FieldValue.increment(-item.quantity)});
+
+      let remainingToConsume = item.quantity;
+      const batchSnapshot = batchSnapshotsByProduct.get(item.productId);
+      for (const batchDoc of batchSnapshot?.docs ?? []) {
+        if (remainingToConsume <= 0) break;
+        const batchQuantity = (batchDoc.data().quantity as number | undefined) ?? 0;
+        if (batchQuantity <= 0) continue;
+        const consumedFromThisBatch = Math.min(batchQuantity, remainingToConsume);
+        transaction.update(batchDoc.ref, {quantity: FieldValue.increment(-consumedFromThisBatch)});
+        remainingToConsume -= consumedFromThisBatch;
+      }
     }
 
     transaction.update(orderRef, {
@@ -1048,6 +1084,12 @@ interface GenerateInvoiceRequest {
  * (`Counters/invoiceNumber`), writes the `Invoices` doc, and marks the order
  * `invoiced` — all in one transaction so a retried/duplicate call can never
  * generate two invoices for the same order or skip/reuse a number.
+ *
+ * Tax (`TAX_LABEL`/`TAX_RATE_PERCENT`) and the payment due date
+ * (`PAYMENT_TERMS_DAYS`), both from `generatedTenantConfig.ts`, are baked
+ * into the invoice at generation time — see `Invoice`'s doc comment on the
+ * Flutter side for why a later tenant-config change must never reinterpret
+ * an already-issued invoice.
  */
 export const generateInvoice = onCall(async (request) => {
   logger.info("generateInvoice: called", {orderId: (request.data as Partial<GenerateInvoiceRequest>)?.orderId});
@@ -1076,6 +1118,11 @@ export const generateInvoice = onCall(async (request) => {
     const nextNumber = ((counterDoc.data()?.value as number | undefined) ?? 0) + 1;
     const invoiceNumber = `INV-${String(nextNumber).padStart(6, "0")}`;
 
+    const totalValue = (order.totalValue as number | undefined) ?? 0;
+    const taxAmount = totalValue * (TAX_RATE_PERCENT / 100);
+    const grandTotal = totalValue + taxAmount;
+    const dueDate = Timestamp.fromMillis(Date.now() + PAYMENT_TERMS_DAYS * 24 * 60 * 60 * 1000);
+
     transaction.set(counterRef, {value: nextNumber});
     transaction.set(invoiceRef, {
       orderId,
@@ -1083,7 +1130,14 @@ export const generateInvoice = onCall(async (request) => {
       agencyId: order.agencyId,
       agencyName: order.agencyName,
       items: order.items,
-      totalValue: order.totalValue,
+      totalValue,
+      taxLabel: TAX_LABEL,
+      taxRate: TAX_RATE_PERCENT,
+      taxAmount,
+      grandTotal,
+      paymentStatus: "unpaid",
+      amountPaid: 0,
+      dueDate,
       issuedAt: FieldValue.serverTimestamp(),
     });
     transaction.update(orderRef, {status: "invoiced", invoiceId: invoiceRef.id});
@@ -1091,4 +1145,276 @@ export const generateInvoice = onCall(async (request) => {
 
   logger.info("generateInvoice: succeeded", {orderId});
   return {success: true};
+});
+
+interface RecordPaymentRequest {
+  invoiceId: string;
+  amount: number;
+  notes?: string;
+}
+
+/**
+ * `manage_invoices`-gated: records one payment against an invoice
+ * (`Payments` doc) and, in the same transaction, adds it onto
+ * `Invoice.amountPaid` and recomputes `Invoice.paymentStatus` — `paid` once
+ * `amountPaid >= grandTotal`, `partial` if some but not all has been paid,
+ * otherwise stays `unpaid`. Rejects an amount that would overpay the
+ * invoice (`amountPaid` exceeding `grandTotal`) rather than silently
+ * accepting a refund-shaped negative balance; a genuine refund/credit is a
+ * business decision to make in `notes` and a separate process, not
+ * something this function infers.
+ */
+export const recordPayment = onCall(async (request) => {
+  logger.info("recordPayment: called", {invoiceId: (request.data as Partial<RecordPaymentRequest>)?.invoiceId});
+  const uid = await requirePermission(request, "manage_invoices");
+
+  const {invoiceId, amount, notes} = (request.data ?? {}) as Partial<RecordPaymentRequest>;
+  if (!invoiceId) {
+    throw new HttpsError("invalid-argument", "invoiceId is required.");
+  }
+  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    throw new HttpsError("invalid-argument", "amount must be a positive number.");
+  }
+
+  const firestore = getFirestore();
+  const invoiceRef = firestore.collection("Invoices").doc(invoiceId);
+  const paymentRef = firestore.collection("Payments").doc();
+
+  await firestore.runTransaction(async (transaction) => {
+    const invoiceDoc = await transaction.get(invoiceRef);
+    if (!invoiceDoc.exists) {
+      throw new HttpsError("not-found", "That invoice no longer exists.");
+    }
+    const invoice = invoiceDoc.data()!;
+    const grandTotal = (invoice.grandTotal as number | undefined) ?? 0;
+    const currentPaid = (invoice.amountPaid as number | undefined) ?? 0;
+    const newAmountPaid = currentPaid + amount;
+
+    if (newAmountPaid > grandTotal + 0.01) {
+      // A small epsilon absorbs floating-point rounding on the tax
+      // computation above without letting a genuinely large overpayment
+      // through.
+      throw new HttpsError(
+        "failed-precondition",
+        `This payment would overpay the invoice by ${(newAmountPaid - grandTotal).toFixed(2)}.`
+      );
+    }
+
+    const newStatus = newAmountPaid >= grandTotal - 0.01 ? "paid" : newAmountPaid > 0 ? "partial" : "unpaid";
+
+    transaction.set(paymentRef, {
+      invoiceId,
+      amount,
+      recordedByUid: uid,
+      notes: notes ?? "",
+      paidAt: FieldValue.serverTimestamp(),
+    });
+    transaction.update(invoiceRef, {amountPaid: newAmountPaid, paymentStatus: newStatus});
+  });
+
+  logger.info("recordPayment: succeeded", {invoiceId});
+  return {success: true};
+});
+
+// ---------------------------------------------------------------------
+// Targeted approval notifications: Orders, ExpenseClaims, LeaveRequests,
+// and DoctorVisitPlans are all approved/rejected via direct, rules-gated
+// client writes (see firestore.rules), not Cloud Functions — these
+// triggers react to those writes rather than replacing them, so the
+// approval action itself is unchanged; this is purely "notify the right
+// person that something happened."
+// ---------------------------------------------------------------------
+
+/**
+ * Finds everyone in [creatorUid]'s reporting chain (their managers, at any
+ * level — see `reportingChainUids`, maintained by `functions/src/hierarchy.ts`)
+ * who currently holds [permission], and pushes each of them
+ * [notification]/[data] via [sendPushToUser]. Used when a new order/
+ * expense-claim/leave-request/visit-plan needs someone with the matching
+ * `approve_*` permission to know about it — deliberately narrower than
+ * `ADMIN_NOTIFICATIONS_TOPIC`'s broadcast-to-every-admin approach, since
+ * these are downline-scoped concerns, not company-wide ones.
+ */
+async function notifyReportingChainWithPermission(
+  creatorUid: string,
+  permission: string,
+  notification: {title: string; body: string},
+  data: Record<string, string>
+): Promise<void> {
+  logger.info("notifyReportingChainWithPermission: called", {creatorUid, permission});
+  const creatorDoc = await getFirestore().collection("Users").doc(creatorUid).get();
+  const chain = (creatorDoc.data()?.reportingChainUids as string[] | undefined) ?? [];
+  if (chain.length === 0) {
+    logger.info("notifyReportingChainWithPermission: empty reporting chain, nothing to notify", {creatorUid});
+    return;
+  }
+
+  const managerDocs = await Promise.all(chain.map((uid) => getFirestore().collection("Users").doc(uid).get()));
+  const recipients = managerDocs.filter((doc) => {
+    const permissions = (doc.data()?.permissions as string[] | undefined) ?? [];
+    return permissions.includes(permission);
+  });
+  logger.info("notifyReportingChainWithPermission: notifying recipients", {
+    creatorUid,
+    permission,
+    recipientCount: recipients.length,
+  });
+
+  await Promise.all(recipients.map((doc) => sendPushToUser(doc.id, notification, data)));
+}
+
+export const onOrderWritten = onDocumentWritten("Orders/{orderId}", async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after?.data();
+  if (!after) return; // Deleted — Orders are never deleted, but guard anyway.
+
+  const orderId = event.params.orderId;
+  const createdByUid = after.createdByUid as string | undefined;
+  const createdByName = (after.createdByName as string | undefined) || "An MR";
+  const agencyName = (after.agencyName as string | undefined) || "an agency";
+  const status = after.status as string | undefined;
+
+  if (!before?.exists) {
+    if (!createdByUid || status !== "pending") return;
+    logger.info("onOrderWritten: new order, notifying approvers", {orderId, createdByUid});
+    await notifyReportingChainWithPermission(
+      createdByUid,
+      "approve_orders",
+      {title: "New order to review", body: `${createdByName} placed an order for ${agencyName}.`},
+      {type: "order_pending_approval", orderId}
+    );
+    return;
+  }
+
+  const beforeStatus = before.data()?.status as string | undefined;
+  if (beforeStatus === status || !createdByUid) return;
+
+  const statusMessages: Record<string, string> = {
+    approved: `Your order for ${agencyName} was approved.`,
+    rejected: `Your order for ${agencyName} was rejected.`,
+    dispatched: `Your order for ${agencyName} was dispatched.`,
+    invoiced: `Your order for ${agencyName} was invoiced.`,
+  };
+  const message = status ? statusMessages[status] : undefined;
+  if (!message) return;
+
+  logger.info("onOrderWritten: status changed, notifying creator", {orderId, createdByUid, status});
+  await sendPushToUser(createdByUid, {title: "Order update", body: message}, {type: "order_status_changed", orderId});
+});
+
+export const onExpenseClaimWritten = onDocumentWritten("ExpenseClaims/{claimId}", async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after?.data();
+  if (!after) return;
+
+  const claimId = event.params.claimId;
+  const mrUid = after.mrUid as string | undefined;
+  const mrName = (after.mrName as string | undefined) || "An MR";
+  const status = after.status as string | undefined;
+
+  if (!before?.exists) {
+    if (!mrUid || status !== "pending") return;
+    logger.info("onExpenseClaimWritten: new claim, notifying approvers", {claimId, mrUid});
+    await notifyReportingChainWithPermission(
+      mrUid,
+      "approve_expenses",
+      {title: "New expense claim to review", body: `${mrName} filed an expense claim.`},
+      {type: "expense_claim_pending_approval", claimId}
+    );
+    return;
+  }
+
+  const beforeStatus = before.data()?.status as string | undefined;
+  if (beforeStatus === status || !mrUid) return;
+  const message =
+    status === "approved" ? "Your expense claim was approved." :
+    status === "rejected" ? "Your expense claim was rejected." :
+    undefined;
+  if (!message) return;
+
+  logger.info("onExpenseClaimWritten: status changed, notifying MR", {claimId, mrUid, status});
+  await sendPushToUser(
+    mrUid,
+    {title: "Expense claim update", body: message},
+    {type: "expense_claim_status_changed", claimId}
+  );
+});
+
+export const onLeaveRequestWritten = onDocumentWritten("LeaveRequests/{requestId}", async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after?.data();
+  if (!after) return;
+
+  const requestId = event.params.requestId;
+  const mrUid = after.mrUid as string | undefined;
+  const mrName = (after.mrName as string | undefined) || "An MR";
+  const status = after.status as string | undefined;
+
+  if (!before?.exists) {
+    if (!mrUid || status !== "pending") return;
+    logger.info("onLeaveRequestWritten: new request, notifying approvers", {requestId, mrUid});
+    await notifyReportingChainWithPermission(
+      mrUid,
+      "approve_leave",
+      {title: "New leave request to review", body: `${mrName} requested leave.`},
+      {type: "leave_request_pending_approval", requestId}
+    );
+    return;
+  }
+
+  const beforeStatus = before.data()?.status as string | undefined;
+  if (beforeStatus === status || !mrUid) return;
+  const message =
+    status === "approved" ? "Your leave request was approved." :
+    status === "rejected" ? "Your leave request was rejected." :
+    undefined;
+  if (!message) return;
+
+  logger.info("onLeaveRequestWritten: status changed, notifying MR", {requestId, mrUid, status});
+  await sendPushToUser(
+    mrUid,
+    {title: "Leave request update", body: message},
+    {type: "leave_request_status_changed", requestId}
+  );
+});
+
+/**
+ * `DoctorVisitPlans/{mrUid}` doubles as the doc id and the MR's own uid
+ * (one plan per MR — see `domain/models/doctor_visit_plan.dart`), so unlike
+ * the three triggers above there's no separate `mrUid` field to read.
+ * Fires only on an actual status transition — content-only edits
+ * (`copyWithWeekday`) don't touch `status`, and the very first save
+ * defaults to `draft`, not `pending`, so creation alone never notifies
+ * anyone (only an explicit "Submit for Approval" does).
+ */
+export const onDoctorVisitPlanWritten = onDocumentWritten("DoctorVisitPlans/{mrUid}", async (event) => {
+  const before = event.data?.before;
+  const after = event.data?.after?.data();
+  if (!after) return;
+
+  const mrUid = event.params.mrUid;
+  const beforeStatus = before?.data()?.status as string | undefined;
+  const status = after.status as string | undefined;
+  if (beforeStatus === status) return;
+
+  if (status === "pending") {
+    logger.info("onDoctorVisitPlanWritten: submitted for approval, notifying approvers", {mrUid});
+    await notifyReportingChainWithPermission(
+      mrUid,
+      "approve_requests",
+      {title: "Visit plan to review", body: "A team member submitted their weekly visit plan for approval."},
+      {type: "visit_plan_pending_approval", mrUid}
+    );
+    return;
+  }
+
+  if (beforeStatus === "pending" && (status === "approved" || status === "rejected")) {
+    const message = status === "approved" ? "Your visit plan was approved." : "Your visit plan was rejected.";
+    logger.info("onDoctorVisitPlanWritten: reviewed, notifying MR", {mrUid, status});
+    await sendPushToUser(
+      mrUid,
+      {title: "Visit plan update", body: message},
+      {type: "visit_plan_status_changed", mrUid}
+    );
+  }
 });

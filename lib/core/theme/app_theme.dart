@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../tenant/tenant_config.dart';
+
 class AppTheme {
   AppTheme._();
 
-  // Sampled from the app icon (assets/bnewlogo.jpeg — the blue half of the
-  // "B" mark) so the in-app theme reads as the same brand as the launcher
-  // icon, not an unrelated blue.
-  static const Color primary = Color(0xFF3470B2);
+  // Sourced from the active tenant's config so the in-app theme reads as
+  // the same brand as that tenant's launcher icon, not a fixed color.
+  static final Color primary = Color(currentTenant.primaryColorValue);
 
   // Status colors used outside the Material ColorScheme (connectivity /
   // sync affordances), centralized here instead of scattered Colors.green

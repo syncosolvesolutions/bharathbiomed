@@ -64,6 +64,9 @@ dependencies:
   url_launcher: ^6.3.1  # Profile/admin: opening WhatsApp with prefilled credentials
   share_plus: ^13.3.0  # Profile/admin: generic "share credentials via any app" fallback
   shared_preferences: ^2.3.3  # Remembering "already showed birthday greeting this year" per device
+  csv: ^6.0.0  # ReportExportService: raw-data export from dashboards
+  pdf: ^3.11.3  # ReportExportService: formatted-report export from dashboards
+  printing: ^5.13.4  # ReportExportService: the share/print sheet for generated PDFs
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+import '../tenant/tenant_config.dart';
+
 /// Medical Representatives log in with a plain username (e.g. `rajesh_kumar`),
 /// not a real email — Firebase Auth still requires an email-shaped identifier
-/// under the hood, so this mirrors functions/src/adminAccess.ts's
-/// `usernameToEmail` exactly. Keep both in sync.
-const employeeEmailDomain = 'bharathbiomedpharma-6c6c3.firebaseapp.com';
+/// under the hood. See [TenantConfig.employeeEmailDomain] for how this is
+/// derived (compile-time, from the tenant's Firebase project id) rather than
+/// hardcoded.
+String get employeeEmailDomain => currentTenant.employeeEmailDomain;
 
 /// Resolves whatever the user typed in the login field into the identifier
 /// Firebase Auth actually expects: a real email is passed through as-is (the

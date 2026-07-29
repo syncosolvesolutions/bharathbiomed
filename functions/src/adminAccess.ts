@@ -6,20 +6,29 @@ import * as logger from "firebase-functions/logger";
 // Mirrors the allowlist in lib/core/auth/admin_access.dart on the Flutter
 // side. That client-side check only controls what the UI shows; this is the
 // check that actually matters, since it runs on the server and can't be
-// bypassed by a modified client.
+// bypassed by a modified client. Both this array and firestore.rules'
+// isAdmin() are generated from the same tenants/<tenantId>/tenant.json by
+// scripts/apply_tenant.dart — edit the json and re-run that script, don't
+// hand-edit either copy. Do not remove the marker comments below; the
+// script replaces everything between them.
 const ADMIN_EMAILS = new Set([
+  // TENANT-ADMIN-EMAILS:START
   "bharathbiomedpharma@gmail.com",
   "sudhakar.gotte@bharathbiomedpharma.com",
+  // TENANT-ADMIN-EMAILS:END
 ]);
 
 /**
  * Synthetic email domain for Medical Representative accounts. MRs log in
  * with a short username (e.g. "rajesh"), not a real email address, so their
  * Firebase Auth account uses `mr-<username>@<this domain>` under the hood.
- * Using this project's own Firebase Hosting domain guarantees the address
- * can never collide with, or accidentally notify, a real third party.
+ * Derived from this function's own deployed project id (never hardcoded),
+ * so it can never drift from the Firebase project it's actually running in
+ * — mirrors lib/core/auth/employee_login.dart's `employeeEmailDomain`,
+ * which derives the same value client-side from `Firebase.app().options
+ * .authDomain`. Both must keep resolving to the same domain.
  */
-export const EMPLOYEE_EMAIL_DOMAIN = "bharathbiomedpharma-6c6c3.firebaseapp.com";
+export const EMPLOYEE_EMAIL_DOMAIN = `${process.env.GCLOUD_PROJECT}.firebaseapp.com`;
 
 export function usernameToEmail(username: string): string {
   logger.info("usernameToEmail: called", {username});

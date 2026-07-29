@@ -27,6 +27,31 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
+// Per-tenant applicationId/app-name, kept out of source so a white-label
+// build doesn't require hand-editing this file — see
+// tenants/<tenantId>/tenant.properties, copied to android/tenant.properties
+// (same directory as local.properties/key.properties above — this is the
+// Gradle root for the Android build, not the Flutter project root) by
+// scripts/new_tenant.sh for that tenant's build. `namespace` above stays
+// fixed regardless (it's tied to the physical Kotlin package under
+// src/main/kotlin/ — see MainActivity.kt — and, unlike applicationId, AGP
+// doesn't need it to vary per tenant). Falls back to this repo's own
+// already-published identity when no tenant.properties is present, so a
+// plain `flutter build`/`flutter run` with no tenant setup keeps working
+// exactly as before. Note a real per-tenant build also needs that tenant's
+// own google-services.json in this directory — the applicationId must have
+// a matching client entry there, or processDebugGoogleServices fails fast
+// (verified while testing this).
+val tenantProperties = Properties()
+val tenantPropertiesFile = rootProject.file("tenant.properties")
+if (tenantPropertiesFile.exists()) {
+    tenantPropertiesFile.reader(Charsets.UTF_8).use { reader ->
+        tenantProperties.load(reader)
+    }
+}
+val tenantApplicationId = tenantProperties.getProperty("applicationId") ?: "com.syncosolve.bharathbiomedpharma"
+val tenantAppLabel = tenantProperties.getProperty("appLabel") ?: "Bharath Biomed Pharma"
+
 android {
     namespace = "com.syncosolve.bharathbiomedpharma"
     compileSdk = flutter.compileSdkVersion
@@ -51,14 +76,16 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.syncosolve.bharathbiomedpharma"
+        applicationId = tenantApplicationId
         // You can update the following values to match your application needs.
         // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
+        // Resolves the `${appLabel}` placeholder in AndroidManifest.xml's
+        // android:label — see the tenantAppLabel comment above.
+        manifestPlaceholders["appLabel"] = tenantAppLabel
     }
 
     buildTypes {

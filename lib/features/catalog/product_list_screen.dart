@@ -5,6 +5,7 @@ import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
+import '../../core/tenant/tenant_config.dart';
 import '../../core/theme/app_theme.dart';
 import '../../domain/models/employee.dart';
 import '../admin/admin_access.dart';
@@ -114,7 +115,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bharath Biomed Pharma'),
+        title: Text(currentTenant.appName),
         actions: [
           if (myProfile?.isBirthdayToday ?? false)
             IconButton(
@@ -193,6 +194,30 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               icon: const Icon(Icons.fact_check_outlined),
               tooltip: 'RCPA Entries',
               onPressed: () => context.push('/rcpa'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.request_page_outlined),
+              tooltip: 'My Expense Claims',
+              onPressed: () => context.push('/expenses'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.event_busy_outlined),
+              tooltip: 'My Leave Requests',
+              onPressed: () => context.push('/leave'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.event_available_outlined),
+              tooltip: 'My Attendance',
+              onPressed: () => context.push('/attendance'),
+            ),
+          if (isSignedIn && !isAdmin)
+            IconButton(
+              icon: const Icon(Icons.gavel_outlined),
+              tooltip: 'Compliance Log',
+              onPressed: () => context.push('/compliance'),
             ),
           // Shown to every non-admin signed-in employee, not just designated
           // managers — there's no cheap client-side way to know in advance

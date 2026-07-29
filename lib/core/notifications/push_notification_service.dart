@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -71,11 +70,16 @@ Future<bool> checkIsPhysicalDevice() async {
   debugPrint('checkIsPhysicalDevice: querying device info platform channel');
   DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
 
-  if (Platform.isIOS) {
+  // defaultTargetPlatform (not dart:io's Platform) so this file has no
+  // dart:io dependency — dart:io doesn't compile for web at all, and this
+  // file is imported by app.dart, which is part of the web build too (see
+  // PushNotificationService.initialize's early kIsWeb return below for why
+  // that's safe: this function is simply never reached on web).
+  if (defaultTargetPlatform == TargetPlatform.iOS) {
     IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
     debugPrint('checkIsPhysicalDevice: iOS isPhysicalDevice=${iosInfo.isPhysicalDevice}');
     return iosInfo.isPhysicalDevice;
-  } else if (Platform.isAndroid) {
+  } else if (defaultTargetPlatform == TargetPlatform.android) {
     AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
     debugPrint('checkIsPhysicalDevice: Android isPhysicalDevice=${androidInfo.isPhysicalDevice}');
     return androidInfo.isPhysicalDevice;
@@ -92,6 +96,15 @@ class PushNotificationService {
   final Ref _ref;
 
   Future<void> initialize() async {
+    if (kIsWeb) {
+      // Web push needs a service worker (firebase-messaging-sw.js) this
+      // project doesn't have configured, and the admin console (the only
+      // thing this app's web build is) has no offline catalog to re-sync
+      // on a push anyway — see main.dart's doc comment for the same
+      // web-skips-mobile-only-setup reasoning applied to Crashlytics.
+      debugPrint('PushNotificationService.initialize: web build, skipping push notification setup');
+      return;
+    }
     debugPrint('PushNotificationService.initialize: starting push notification setup');
     final messaging = FirebaseMessaging.instance;
 

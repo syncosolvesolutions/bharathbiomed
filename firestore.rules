@@ -12,11 +12,17 @@ service cloud.firestore {
     }
 
     // Mirrors the allowlist in lib/core/auth/admin_access.dart and
-    // functions/src/adminAccess.ts. Keep all three in sync.
+    // functions/src/adminAccess.ts. All three are generated from the same
+    // tenants/<tenantId>/tenant.json by scripts/apply_tenant.dart — edit the
+    // json and re-run that script, don't hand-edit any of the three. Do not
+    // remove the marker comments below; the script replaces everything
+    // between them.
     function isAdmin() {
       return isSignedIn() && request.auth.token.email in [
+        // TENANT-ADMIN-EMAILS:START
         'bharathbiomedpharma@gmail.com',
         'sudhakar.gotte@bharathbiomedpharma.com'
+        // TENANT-ADMIN-EMAILS:END
       ];
     }
 
@@ -71,6 +77,18 @@ service cloud.firestore {
       allow write: if isAdmin();
       allow update: if isOfficeAdmin() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stockQuantity']);
+    }
+
+    // Batch/expiry tracking for a product's stock (see
+    // domain/models/product_batch.dart). Inventory-management data, not
+    // needed by the sales/MR side, so read is scoped to admin/Office Admin
+    // rather than every signed-in user the way Products itself is. Both
+    // `addBatch`/`deleteBatch` pair a write here with a `stockQuantity`
+    // update on the parent Product in the same client transaction — that
+    // paired write is separately gated by the narrower Office Admin rule
+    // on `Products/{productId}` above.
+    match /Products/{productId}/Batches/{batchId} {
+      allow read, write: if isOfficeAdmin();
     }
 
     match /Department/{departmentDoc} {
@@ -174,11 +192,50 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // One doc per MR holding their recurring weekly visiting schedule. The
-    // MR edits their own; the admin can read/edit any MR's plan too (e.g.
-    // while reassigning doctors).
+    // One doc per MR holding their recurring weekly visiting schedule, plus
+    // a beat/route-plan approval workflow on top (see
+    // domain/models/doctor_visit_plan.dart's VisitPlanStatus). The admin
+    // can always read/edit any MR's plan (e.g. while reassigning doctors);
+    // a manager (global visibility, or this MR being in their downline)
+    // can read it too, for the approval screen.
     match /DoctorVisitPlans/{mrUid} {
-      allow read, write: if isAdmin() || (isSignedIn() && request.auth.uid == mrUid);
+      allow read: if isAdmin() || hasGlobalVisibility() || (isSignedIn() && request.auth.uid == mrUid) ||
+        isInDownlineOf(mrUid);
+
+      // The MR's own content edits (including the initial create, and
+      // submitting for approval by setting status to 'pending') — blocked
+      // while a manager review is already in flight ('pending') so a
+      // decision can't be raced against a content edit; the MR can resume
+      // editing once it's approved or rejected, and (per
+      // DoctorVisitPlan.copyWithWeekday's doc comment) that resumed editing
+      // deliberately does NOT reset an existing 'approved'/'rejected'
+      // status back to 'draft' — so the update rule below must allow the
+      // status to stay exactly what it already was. What it must NOT allow
+      // is the MR jumping the status to 'approved'/'rejected' themselves:
+      // the only two statuses a content-edit write may ever *produce* are
+      // 'draft' (create) and either "unchanged" or 'pending' (update) —
+      // only the second `allow update` below (the manager's decision) can
+      // ever set 'approved'/'rejected'.
+      allow create: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == mrUid &&
+          request.resource.data.get('status', 'draft') in ['draft', 'pending']);
+      allow update: if isAdmin() ||
+        (isSignedIn() && request.auth.uid == mrUid && resource.data.get('status', 'draft') != 'pending' &&
+          (request.resource.data.get('status', 'draft') == resource.data.get('status', 'draft') ||
+            request.resource.data.get('status', 'draft') == 'pending'));
+
+      // A manager's approve/reject decision on a submitted plan — mirrors
+      // Orders/ExpenseClaims: only the review fields change, and only
+      // while pending.
+      allow update: if isSignedIn()
+        && hasPermission('approve_requests')
+        && (hasGlobalVisibility() || isInDownlineOf(mrUid))
+        && resource.data.get('status', 'draft') == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
+
+      allow delete: if false;
     }
 
     // Append-only daily "who I visited today and how it went" records —
@@ -193,6 +250,14 @@ service cloud.firestore {
     // DoctorVisitLogs above (append-only, admin/global/downline read, own-
     // mrUid create only).
     match /RcpaEntries/{entryId} {
+      allow read: if isAdmin() || hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid);
+      allow create: if isSignedIn() && request.resource.data.mrUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // UCPMP compliance records (what an MR gave a doctor) — same shape as
+    // RcpaEntries above: append-only, own-mrUid create only.
+    match /ComplianceLogs/{logId} {
       allow read: if isAdmin() || hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid);
       allow create: if isSignedIn() && request.resource.data.mrUid == request.auth.uid;
       allow update, delete: if false;
@@ -278,6 +343,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Generated only by recordPayment (Cloud Function, Admin SDK), which
+    // also updates the parent Invoice's amountPaid/paymentStatus in the
+    // same transaction — same read-access shape as Invoices above.
+    match /Payments/{paymentId} {
+      allow read: if isAdmin() || hasGlobalVisibility() || hasPermission('manage_invoices');
+      allow write: if false;
+    }
+
     // A monthly order-value target an RM-or-above sets for one of their
     // reporting-chain downline. Doc id is `{employeeUid}_{period}` (an
     // upsert key, not enforced here). The employee it's for may always read
@@ -293,6 +366,47 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
         && (isAdmin() || hasGlobalVisibility() || hasPermission('manage_targets'))
         && (isAdmin() || hasGlobalVisibility() || isInDownlineOf(request.resource.data.employeeUid));
+      allow delete: if false;
+    }
+
+    // An MR's TA/DA expense claim — same shape as Orders above, minus the
+    // dispatch/invoice steps (a claim has no further fulfillment once
+    // approved, so 'approved'/'rejected' are both terminal here).
+    match /ExpenseClaims/{claimId} {
+      allow read: if isAdmin()
+        || hasGlobalVisibility()
+        || resource.data.mrUid == request.auth.uid
+        || isInDownlineOf(resource.data.mrUid);
+      allow create: if isSignedIn()
+        && request.resource.data.mrUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && hasPermission('approve_expenses')
+        && (hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid))
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
+      allow delete: if false;
+    }
+
+    // An MR's leave request — identical shape to ExpenseClaims above, just
+    // gated by approve_leave instead of approve_expenses.
+    match /LeaveRequests/{requestId} {
+      allow read: if isAdmin()
+        || hasGlobalVisibility()
+        || resource.data.mrUid == request.auth.uid
+        || isInDownlineOf(resource.data.mrUid);
+      allow create: if isSignedIn()
+        && request.resource.data.mrUid == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isSignedIn()
+        && hasPermission('approve_leave')
+        && (hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid))
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
       allow delete: if false;
     }
 

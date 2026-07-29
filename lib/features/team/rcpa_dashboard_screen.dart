@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
+import '../../core/utils/report_export_service.dart';
+import '../../core/widgets/export_menu_button.dart';
 import '../admin/usage_format.dart';
 import 'rcpa_dashboard_controller.dart';
 
@@ -26,13 +28,56 @@ class _RcpaDashboardScreenState extends ConsumerState<RcpaDashboardScreen> {
     super.dispose();
   }
 
+  List<List<String>> _rows(RcpaDashboardData dashboard) {
+    final rows = <List<String>>[];
+    for (final employee in dashboard.employees) {
+      for (final entry in dashboard.entriesByEmployee[employee.uid] ?? const []) {
+        rows.add([
+          employee.displayName,
+          entry.pharmacyName,
+          entry.auditDate,
+          entry.totalOwnBrandCount.toString(),
+          entry.totalCompetitorCount.toString(),
+          entry.notes,
+        ]);
+      }
+    }
+    return rows;
+  }
+
+  Future<void> _exportCsv(RcpaDashboardData dashboard) {
+    return ref.read(reportExportServiceProvider).exportCsv(
+          filename: 'rcpa_entries.csv',
+          headers: const ['Employee', 'Pharmacy', 'Audit Date', 'Own Brand Scripts', 'Competitor Scripts', 'Notes'],
+          rows: _rows(dashboard),
+        );
+  }
+
+  Future<void> _exportPdf(RcpaDashboardData dashboard) {
+    return ref.read(reportExportServiceProvider).exportSimpleTablePdf(
+          filename: 'rcpa_entries.pdf',
+          title: 'RCPA Entries',
+          headers: const ['Employee', 'Pharmacy', 'Audit Date', 'Own Brand', 'Competitor', 'Notes'],
+          rows: _rows(dashboard),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(rcpaDashboardControllerProvider);
     final base = GoRouterState.of(context).matchedLocation;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('RCPA Entries')),
+      appBar: AppBar(
+        title: const Text('RCPA Entries'),
+        actions: [
+          if (data.value != null)
+            ExportMenuButton(
+              onExportCsv: () => _exportCsv(data.value!),
+              onExportPdf: () => _exportPdf(data.value!),
+            ),
+        ],
+      ),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(

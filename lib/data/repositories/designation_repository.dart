@@ -1,20 +1,16 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/tenant/tenant_config.dart';
 import '../../domain/models/designation.dart';
 import '../../domain/models/permission.dart';
 import '../remote/designation_remote_data_source.dart';
 
 /// Default designations seeded the first time the admin opens designation
-/// management, modeled on a typical Indian pharma sales field-force
-/// hierarchy (e.g. Mankind Pharma's MR -> ABM -> RBM -> ZBM ladder). Purely
-/// a starting point — the admin can add, rename, or delete freely from here.
-const defaultDesignations = [
-  'Medical Representative',
-  'Senior Medical Representative',
-  'Area Business Manager',
-  'Regional Business Manager',
-  'Zonal Business Manager',
-];
+/// management, sourced from the active tenant's config (see
+/// tenant_config.dart's `designationLadder`, which defaults to a typical
+/// Indian pharma sales field-force hierarchy). Purely a starting point —
+/// the admin can add, rename, or delete freely from here.
+List<String> get defaultDesignations => currentTenant.designationLadder;
 
 class DesignationRepository {
   DesignationRepository({DesignationRemoteDataSource? remote}) : _remote = remote ?? DesignationRemoteDataSource();

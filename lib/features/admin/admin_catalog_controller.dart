@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/providers.dart';
 import '../../data/repositories/product_repository.dart';
 import '../../domain/models/product.dart';
+import '../../domain/models/product_batch.dart';
 import '../catalog/catalog_controller.dart';
 
 /// Drives the admin product/department screens. Unlike [CatalogController]
@@ -12,6 +13,21 @@ import '../catalog/catalog_controller.dart';
 /// server data, not whatever this device last synced.
 final adminCatalogControllerProvider =
     AsyncNotifierProvider<AdminCatalogController, CatalogSnapshot>(AdminCatalogController.new);
+
+/// One product's batches, oldest expiry first — a one-shot fetch (not part
+/// of [AdminCatalogController]'s own state) since it's only ever needed
+/// while [ProductBatchesScreen] for that specific product is open. Callers
+/// invalidate `productBatchesProvider(productId)` after an add/delete to
+/// refetch, rather than this provider watching anything reactively.
+final productBatchesProvider = FutureProvider.family<List<ProductBatch>, String>(
+  (ref, productId) => ref.read(productRepositoryProvider).fetchBatches(productId),
+);
+
+/// Every batch across every product expiring within 90 days — powers the
+/// admin's expiry-alert view ([ExpiryAlertsScreen]).
+final expiringBatchesProvider = FutureProvider<List<ProductBatch>>(
+  (ref) => ref.read(productRepositoryProvider).fetchExpiringWithinDays(90),
+);
 
 class AdminCatalogController extends AsyncNotifier<CatalogSnapshot> {
   @override
@@ -93,6 +109,29 @@ class AdminCatalogController extends AsyncNotifier<CatalogSnapshot> {
     debugPrint('AdminCatalogController.adjustStock: productId=$productId delta=$delta');
     await ref.read(productRepositoryProvider).adjustStock(productId, delta);
     debugPrint('AdminCatalogController.adjustStock: adjusted productId=$productId');
+    await refresh();
+    await _resyncDeviceCache();
+  }
+
+  Future<List<ProductBatch>> fetchBatches(String productId) => ref.read(productRepositoryProvider).fetchBatches(productId);
+
+  /// Adds a batch and refreshes both this screen's catalog snapshot and the
+  /// admin's own offline cache — see [adjustStock], which
+  /// [ProductRepository.addBatch] shares its "stockQuantity moves too" rule
+  /// with.
+  Future<void> addBatch(String productId,
+      {required String batchNumber, required String expiryDate, required int quantity}) async {
+    debugPrint('AdminCatalogController.addBatch: productId=$productId batchNumber=$batchNumber quantity=$quantity');
+    await ref
+        .read(productRepositoryProvider)
+        .addBatch(productId, batchNumber: batchNumber, expiryDate: expiryDate, quantity: quantity);
+    await refresh();
+    await _resyncDeviceCache();
+  }
+
+  Future<void> deleteBatch(String productId, String batchId) async {
+    debugPrint('AdminCatalogController.deleteBatch: productId=$productId batchId=$batchId');
+    await ref.read(productRepositoryProvider).deleteBatch(productId, batchId);
     await refresh();
     await _resyncDeviceCache();
   }

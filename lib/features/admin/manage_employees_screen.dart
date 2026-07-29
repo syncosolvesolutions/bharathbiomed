@@ -5,13 +5,14 @@ import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
+import '../../core/tenant/tenant_config.dart';
 import '../../core/theme/accent_palette.dart';
 import '../../core/utils/credential_share.dart';
 import '../../domain/models/employee.dart';
 import 'employee_controller.dart';
 import 'widgets/credentials_dialog.dart';
 
-const _defaultResetPassword = 'Bharathbio@2026';
+final _defaultResetPassword = currentTenant.defaultPassword;
 
 enum _StatusFilter { all, active, suspended }
 

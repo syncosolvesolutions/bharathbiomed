@@ -5,6 +5,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import '../../core/error/app_logger.dart';
 import '../../domain/models/product.dart';
+import '../../domain/models/product_batch.dart';
 import '../local/product_local_data_source.dart';
 import '../remote/product_remote_data_source.dart';
 
@@ -145,6 +146,15 @@ class ProductRepository {
     debugPrint('ProductRepository.adjustStock: productId=$productId delta=$delta');
     return _remote.adjustStock(productId, delta);
   }
+
+  Future<List<ProductBatch>> fetchBatches(String productId) => _remote.fetchBatches(productId);
+
+  Future<void> addBatch(String productId, {required String batchNumber, required String expiryDate, required int quantity}) =>
+      _remote.addBatch(productId, batchNumber: batchNumber, expiryDate: expiryDate, quantity: quantity);
+
+  Future<void> deleteBatch(String productId, String batchId) => _remote.deleteBatch(productId, batchId);
+
+  Future<List<ProductBatch>> fetchExpiringWithinDays(int withinDays) => _remote.fetchExpiringWithinDays(withinDays);
 
   Future<void> addDepartment(String name) async {
     debugPrint('ProductRepository.addDepartment: adding department name=$name');

@@ -1,6 +1,7 @@
 import 'package:bharathbiomedpharma/data/remote/invoice_remote_data_source.dart';
 import 'package:bharathbiomedpharma/data/repositories/invoice_repository.dart';
 import 'package:bharathbiomedpharma/domain/models/invoice.dart';
+import 'package:bharathbiomedpharma/domain/models/payment.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -34,5 +35,17 @@ void main() {
     when(() => remote.generate('o1')).thenAnswer((_) async {});
     await repository.generate('o1');
     verify(() => remote.generate('o1')).called(1);
+  });
+
+  test('fetchPayments delegates to the remote data source', () async {
+    const payment = Payment(id: 'p1', invoiceId: 'i1', amount: 25, recordedByUid: 'admin1');
+    when(() => remote.fetchPayments('i1')).thenAnswer((_) async => [payment]);
+    expect(await repository.fetchPayments('i1'), [payment]);
+  });
+
+  test('recordPayment delegates to the remote data source', () async {
+    when(() => remote.recordPayment('i1', amount: 25, notes: 'partial payment')).thenAnswer((_) async {});
+    await repository.recordPayment('i1', amount: 25, notes: 'partial payment');
+    verify(() => remote.recordPayment('i1', amount: 25, notes: 'partial payment')).called(1);
   });
 }

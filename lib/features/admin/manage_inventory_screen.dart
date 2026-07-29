@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
@@ -11,7 +12,10 @@ import 'admin_catalog_controller.dart';
 /// (e.g. +50 for a shipment received, -5 for a correction) — see
 /// [Product.stockQuantity] and [AdminCatalogController.adjustStock]. A
 /// dispatched order decrements stock automatically (via the `dispatchOrder`
-/// Cloud Function); this screen is for everything else.
+/// Cloud Function); this screen is for everything else. "Batches" opens
+/// that product's batch/expiry tracking (`ProductBatchesScreen`) — a more
+/// detailed, optional layer on top of the same `stockQuantity` total (see
+/// its own doc comment for how the two stay in sync).
 class ManageInventoryScreen extends ConsumerStatefulWidget {
   const ManageInventoryScreen({super.key});
 
@@ -119,9 +123,18 @@ class _ManageInventoryScreenState extends ConsumerState<ManageInventoryScreen> {
                           '${product.stockQuantity} in stock',
                           style: low ? const TextStyle(color: Colors.red, fontWeight: FontWeight.w600) : null,
                         ),
-                        trailing: TextButton(
-                          onPressed: () => _adjust(product),
-                          child: const Text('Adjust'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () => context.push('/admin/inventory/batches', extra: product),
+                              child: const Text('Batches'),
+                            ),
+                            TextButton(
+                              onPressed: () => _adjust(product),
+                              child: const Text('Adjust'),
+                            ),
+                          ],
                         ),
                       );
                     },

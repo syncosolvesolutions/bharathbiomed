@@ -4,6 +4,7 @@ import 'package:quickalert/quickalert.dart';
 
 import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
+import '../../core/tenant/tenant_config.dart';
 import '../../core/utils/credential_share.dart';
 import '../../core/utils/date_of_birth.dart';
 import '../../core/utils/validators.dart';
@@ -14,7 +15,7 @@ import 'employee_controller.dart';
 import 'widgets/credentials_dialog.dart';
 import 'widgets/photo_picker_field.dart';
 
-const _defaultPassword = 'Bharathbio@2026';
+final _defaultPassword = currentTenant.defaultPassword;
 
 T? _firstWhereOrNull<T>(Iterable<T> items, bool Function(T) test) {
   for (final item in items) {

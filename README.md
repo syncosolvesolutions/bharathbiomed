@@ -1,22 +1,40 @@
 # Bharath Biomed Pharma
 
-A tablet-only, landscape-locked, offline-first Flutter app for Bharath
-Biomed's field sales team, plus an in-app admin section for managing the
-product catalog and Medical Representative (MR) accounts.
+A tablet-only, offline-first Flutter app for a pharma field sales team —
+catalog/slideshow presentation, doctor visits, orders, RCPA, expenses,
+leave, and more — plus an in-app admin section and a separate desktop web
+console (same codebase, `flutter build web`) for office staff. Portrait
+and landscape are both supported everywhere except the slideshow
+presentation screen, which stays landscape-only (see
+[features/slideshow/SKILL.md](lib/features/slideshow/SKILL.md)). White-
+label: every company-specific value (branding, admin identity, business
+defaults) comes from `tenants/<tenantId>/tenant.json`, not hardcoded — see
+[core/tenant/tenant_config.dart](lib/core/tenant/tenant_config.dart).
 
-For **what the app does** (features, user roles, business rules) see
-[docs/BUSINESS_OVERVIEW.md](docs/BUSINESS_OVERVIEW.md) — that's the
-cross-verification checklist. This README is the technical/setup side.
+For **what the mobile/admin app does** (features, user roles, business
+rules) see [docs/BUSINESS_OVERVIEW.md](docs/BUSINESS_OVERVIEW.md) — note
+it predates most of the feature folders below (see its own note in
+`docs/TODO.md`); each feature's `SKILL.md` is the accurate source until
+that doc gets a refresh pass. This README is the technical/setup side.
 
 ## What's in this repo
 
-- **Flutter app** (`lib/`) — the sales catalog/slideshow app and the admin
-  section, one codebase, one APK.
+- **Flutter app** (`lib/`) — the mobile sales/admin app, the web admin
+  console (`features/admin_web/`), one codebase across both.
 - **Cloud Functions** (`functions/`) — server-side logic for creating/deleting
-  MR accounts (must run with the Admin SDK, not the client SDK — see
+  MR accounts, dispatch/invoicing/payments, and tenant-generated config
+  (must run with the Admin SDK, not the client SDK — see
   [functions/src/index.ts](functions/src/index.ts)).
 - **Firestore rules** (`firestore.rules`) — who can read/write what.
-- `docs/` — business overview, Play Store submission checklist, privacy policy.
+- **`tenants/`** — one `tenant.json` (+ `tenant.properties`) per pharma
+  company deployment; `scripts/apply_tenant.dart`/`scripts/new_tenant.sh`
+  turn one into a branded build — see
+  [core/tenant/tenant_config.dart](lib/core/tenant/tenant_config.dart)'s
+  doc comment for the full mechanism.
+- `docs/` — business overview, Play Store submission checklist, privacy
+  policy, and a [per-tenant data export runbook](docs/DATA_EXPORT_RUNBOOK.md)
+  (a buyer-trust deliverable: any tenant can get their own data out on
+  request).
 
 ## Architecture
 
@@ -25,24 +43,68 @@ feature:
 
 ```
 lib/
-  domain/models/       Plain data classes (Product, Employee, Designation, UsageSession)
+  domain/models/       Plain data classes (Product, Employee, Designation, Order,
+                        ExpenseClaim, RcpaEntry, Doctor, Agency, Pharmacy, ...)
   data/
-    local/              sqflite — the offline catalog cache + queued usage sessions
+    local/              sqflite — the offline catalog cache + every feature's
+                        queued-for-upload local tables (usage sessions, orders,
+                        expense claims, visit logs, RCPA entries, ...)
     remote/             Firestore/Storage/Cloud Functions calls, nothing else
-    repositories/        Combine local+remote, own the business rules
+    repositories/        Combine local+remote, own the business rules — one per
+                        feature, wired together in data/providers.dart
   features/
     auth/                Sign-in (admin email or MR username/email), change/forgot password
     catalog/             Browse-by-department, multi-select, slideshow hand-off
-    slideshow/           Full-screen swipeable/zoomable product viewer
-    admin/               Product/department/designation CRUD, employee management, usage dashboard
+    slideshow/           Full-screen swipeable/zoomable product viewer (landscape-only,
+                        see its own SKILL.md — the rest of the app is portrait+landscape)
+    admin/               Product/department/designation CRUD, employee management, usage
+                        dashboard, batch/expiry inventory tracking — see its SKILL.md
+    doctors/             Doctor master data, weekly visit plans (+ manager approval
+                        workflow) and daily visit-log capture — see its SKILL.md
+    agencies/, pharmacies/  Distributor/chemist master data an MR orders against or audits
+    entity_requests/     An MR's proposed new agency/pharmacy, pending Office Admin review
+    orders/              MR order-booking + team approve/dispatch/invoice workflow,
+                        tax + payment tracking on invoices — see its SKILL.md
+    rcpa/                Retail Chemist Prescription Audit entries + team dashboard
+    expenses/            TA/DA expense claims + team approval workflow (mirrors orders/,
+                        see its own SKILL.md for how the two patterns differ)
+    leave/                Leave requests + team approval workflow (structurally
+                        identical to expenses/, see its SKILL.md)
+    attendance/            Day-by-day attendance derived from UsageSession — no
+                        new backend, see its SKILL.md
+    compliance/            UCPMP compliance logging (gifts/samples/sponsorships
+                        given to doctors) — see its SKILL.md
+    targets/             Monthly sales targets + live achievement tracking
+    team/                A manager's rollup views across their reporting-chain downline
+                        (usage/location, visit logs, orders, targets, RCPA, expenses)
+    reminders/            Due-date reminders for the signed-in user
     tracking/            MR app-open/close/location session tracking (admin-facing, MR-invisible)
+    sync/                 The "new data available" banner/progress overlay driving
+                        CatalogController.sync — see the offline-first note below
     legal/               Bundled Terms & Conditions / Privacy Policy content + viewer
+                        (tenant-templated, see core/tenant/ below)
+    admin_web/             The web-build desktop admin console — a navigation
+                        shell reusing every admin/team screen above unchanged,
+                        see its SKILL.md
   core/
-    auth/                Admin-email allowlist, MR username<->email translation
-    router/              go_router config + auth/admin route guards
+    auth/                Admin-email allowlist (tenant-sourced), MR username<->email translation
+    tenant/               TenantConfig — every value that varies per pharma-company
+                        deployment (branding, admin emails, defaults); see
+                        tenants/<tenantId>/tenant.json and scripts/apply_tenant.dart
+    hierarchy/            Reporting-chain/permission resolution shared by every
+                        "my team" screen (see features/team/team_access.dart)
+    router/               go_router config + auth/admin route guards
     error/                User-facing error message mapping, Crashlytics wiring
     connectivity/         Network status (informational only — see below)
+    notifications/        FCM topic subscription + per-user targeted push
+    utils/report_export_service.dart, widgets/export_menu_button.dart
+                        Shared CSV/PDF "Export" action used by several
+                        dashboards — see core/SKILL.md
 ```
+
+Each feature folder above that has non-obvious rules or extension points has
+its own `SKILL.md` — read the relevant one before making a non-trivial change
+there rather than relying on this table alone.
 
 **Offline-first is the load-bearing design decision**: `features/catalog` only
 ever reads the local sqflite cache. The only place that talks to Firestore for
@@ -51,10 +113,6 @@ screen or the in-app sync button) — never automatically. The admin section is
 the exception: it always reads/writes Firestore directly, since the admin
 needs to see and change current server data, not a stale local cache (see
 `features/admin/admin_catalog_controller.dart`).
-
-Each feature folder that predates the admin merge has its own `SKILL.md` with
-more detail (`features/auth`, `features/catalog`, `features/slideshow`,
-`core`, `data`) — read those before making non-trivial changes in that area.
 
 ## Prerequisites
 
@@ -70,8 +128,23 @@ flutter pub get
 flutter run
 ```
 
-This is a tablet-only app (locked to landscape, fullscreen) — run it on a
-tablet or a tablet-sized emulator/simulator for a representative layout.
+This is a tablet-only app on Android/iOS (kiosk-style fullscreen; portrait
+and landscape both supported except the slideshow, which stays
+landscape-only) — run it on a tablet or a tablet-sized emulator/simulator
+for a representative layout.
+
+### Running the web admin console
+
+```bash
+flutter run -d chrome
+```
+
+Lands on the login screen like mobile; signing in with the admin account
+routes to `AdminWebShell` (see
+[features/admin_web/SKILL.md](lib/features/admin_web/SKILL.md)) instead of
+the mobile admin home screen — same login, same Firebase project, no
+separate setup. That SKILL.md also covers what deploying this to Firebase
+Hosting actually requires (deliberately not automated here).
 
 ## Testing
 

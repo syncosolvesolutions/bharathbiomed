@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 /// Entry point for a manager's view of their own reporting-chain downline
-/// (or, for a `view_global_data` holder, everyone) — usage/location and
-/// doctor-visit-log reports. Reachable by any signed-in employee; both
-/// screens behind it simply show an empty state if the signed-in user
-/// doesn't actually manage anyone (see `resolveVisibleEmployees`).
+/// (or, for a `view_global_data` holder, everyone): usage/location,
+/// doctor-visit-log reports, the order workflow queue, team targets, RCPA
+/// entries, expense-claim and leave-request approvals, visit-plan
+/// approvals, derived attendance, and the UCPMP compliance dashboard.
+/// Reachable by any signed-in employee; every screen behind it simply
+/// shows an empty state if the signed-in user doesn't actually manage
+/// anyone (see `resolveVisibleEmployees`) or lacks the specific permission
+/// that screen's actions need (e.g. `approve_expenses`).
 class TeamHomeScreen extends StatelessWidget {
   const TeamHomeScreen({super.key});
 
@@ -59,6 +63,51 @@ class TeamHomeScreen extends StatelessWidget {
               subtitle: const Text("See your team's retail chemist prescription audits."),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () => context.push('/team/rcpa'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.request_page_outlined),
+              title: const Text('Expense Claims'),
+              subtitle: const Text("Approve or reject your team's TA/DA expense claims."),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => context.push('/team/expenses'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.map_outlined),
+              title: const Text('Visit Plan Approvals'),
+              subtitle: const Text("Review your team's submitted weekly beat/route plans."),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => context.push('/team/visit-plans'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.event_busy_outlined),
+              title: const Text('Leave Requests'),
+              subtitle: const Text("Approve or reject your team's leave requests."),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => context.push('/team/leave'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.event_available_outlined),
+              title: const Text('Attendance'),
+              subtitle: const Text("See your team's derived day-by-day attendance."),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => context.push('/team/attendance'),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.gavel_outlined),
+              title: const Text('Compliance Dashboard'),
+              subtitle: const Text('Per-doctor UCPMP gift/sponsorship totals for this year.'),
+              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+              onTap: () => context.push('/team/compliance'),
             ),
           ),
         ],

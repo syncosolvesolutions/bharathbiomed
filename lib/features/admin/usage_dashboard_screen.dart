@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../core/theme/accent_palette.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/report_export_service.dart';
+import '../../core/widgets/export_menu_button.dart';
 import 'usage_dashboard_controller.dart';
 import 'usage_format.dart';
 
@@ -29,6 +31,32 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
     super.dispose();
   }
 
+  List<List<String>> _rows(UsageDashboardData dashboard) => dashboard.summaries
+      .map((summary) => [
+            summary.employee.displayName,
+            summary.sessionCount.toString(),
+            formatDuration(summary.totalDuration),
+            summary.lastOpenedAt == null ? 'Never' : formatDateTime(summary.lastOpenedAt!),
+          ])
+      .toList();
+
+  Future<void> _exportCsv(UsageDashboardData dashboard) {
+    return ref.read(reportExportServiceProvider).exportCsv(
+          filename: 'usage_dashboard.csv',
+          headers: const ['Employee', 'Sessions', 'Total Time', 'Last Opened'],
+          rows: _rows(dashboard),
+        );
+  }
+
+  Future<void> _exportPdf(UsageDashboardData dashboard) {
+    return ref.read(reportExportServiceProvider).exportSimpleTablePdf(
+          filename: 'usage_dashboard.pdf',
+          title: 'Usage Dashboard',
+          headers: const ['Employee', 'Sessions', 'Total Time', 'Last Opened'],
+          rows: _rows(dashboard),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = ref.watch(usageDashboardControllerProvider);
@@ -38,7 +66,16 @@ class _UsageDashboardScreenState extends ConsumerState<UsageDashboardScreen> {
     final base = GoRouterState.of(context).matchedLocation;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Usage Dashboard')),
+      appBar: AppBar(
+        title: const Text('Usage Dashboard'),
+        actions: [
+          if (data.value != null)
+            ExportMenuButton(
+              onExportCsv: () => _exportCsv(data.value!),
+              onExportPdf: () => _exportPdf(data.value!),
+            ),
+        ],
+      ),
       body: data.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../../core/tenant/tenant_config.dart';
 import '../../domain/models/employee.dart';
 
 /// Shows a one-time "Happy Birthday" celebration for [employee] if today is
@@ -60,10 +61,10 @@ class _BirthdayDialog extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppTheme.primary, Color(0xFF7C4DFF)],
+            colors: [AppTheme.primary, const Color(0xFF7C4DFF)],
           ),
           borderRadius: BorderRadius.circular(28),
           boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 24, offset: const Offset(0, 12))],
@@ -83,7 +84,7 @@ class _BirthdayDialog extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Wishing you a wonderful year ahead — from all of us at Bharath Biomed Pharma.',
+              'Wishing you a wonderful year ahead — from all of us at ${currentTenant.appName}.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white.withValues(alpha: 0.9)),
             ),

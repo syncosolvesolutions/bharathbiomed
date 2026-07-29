@@ -294,7 +294,7 @@ class _AdminProfileFormState extends ConsumerState<_AdminProfileForm> {
                   validator: (value) => Validators.name(value, fieldLabel: 'last name'),
                 ),
                 const SizedBox(height: 12),
-                const _ReadOnlyField(label: 'Email', value: 'bharathbiomedpharma@gmail.com'),
+                _ReadOnlyField(label: 'Email', value: ref.watch(authControllerProvider).value?.email ?? ''),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _mobileController,

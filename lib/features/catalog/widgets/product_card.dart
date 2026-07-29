@@ -19,11 +19,13 @@ class ProductCard extends ConsumerWidget {
   /// shape everywhere it appears in the app.
   static const aspectRatio = 16 / 9;
 
-  /// Tile width for this device: derived from screen height (the shorter
-  /// dimension in this landscape-locked app) so rows show a consistent
-  /// number of cards regardless of exact device size. [CategorySection]
-  /// reuses this to size the row that hosts these cards.
-  static double widthFor(BuildContext context) => MediaQuery.of(context).size.height / 3;
+  /// Tile width for this device: derived from the shortest side (the
+  /// screen's short dimension regardless of whether it's currently
+  /// portrait or landscape — this app now supports both, see main.dart) so
+  /// rows show a consistent number of cards no matter the current
+  /// orientation or exact device size. [CategorySection] reuses this to
+  /// size the row that hosts these cards.
+  static double widthFor(BuildContext context) => MediaQuery.of(context).size.shortestSide / 3;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

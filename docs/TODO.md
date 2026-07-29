@@ -287,3 +287,225 @@ build.
 - [ ] Real-device check: change a product as admin, confirm a second device
       (MR login) gets the push and its catalog updates without anyone
       tapping sync.
+
+## 8. White-label foundation, orientation support, and roadmap builds (2026-07-29)
+
+Working through the "white-label + full gap closure" roadmap (see the plan
+this session was executed from, or re-derive it from the git history around
+this date if the plan file itself isn't checked in). Verified with `flutter
+analyze` (clean), `flutter test` (all passing), and a clean Cloud Functions
+`tsc` build throughout.
+
+- [x] **Tenant config foundation** — every previously-hardcoded
+      Bharath-Biomed-specific value (admin emails, app name/colors, default
+      password, support email, legal jurisdiction, designation ladder,
+      Firebase project id, Android app id/label) now comes from
+      `tenants/<tenantId>/tenant.json` via `lib/core/tenant/tenant_config.dart`
+      and `scripts/apply_tenant.dart`/`scripts/new_tenant.sh`. See those
+      scripts' own doc comments for the onboarding workflow.
+- [x] **Portrait + landscape support** — the app now supports both
+      orientations everywhere except the slideshow presentation screen,
+      which forces landscape on entry and restores on exit (see
+      `features/slideshow/SKILL.md`).
+- [x] **Expense claims (Phase 3 of the roadmap)** — TA/DA claims with an
+      approval workflow, following the existing `Order`
+      offline-first-queue-then-approve pattern. See
+      `features/expenses/SKILL.md`.
+- [x] **Beat/route (weekly visit) plan approval (Phase 3)** — a manager
+      approve/reject workflow added on top of the existing
+      `DoctorVisitPlans` doc, gated by the previously-unused
+      `approve_requests` permission. See `features/doctors/SKILL.md`.
+- [x] **Leave requests (Phase 3)** — structurally identical to expense
+      claims. See `features/leave/SKILL.md` (also notes what's
+      deliberately not built: leave-balance tracking, a team leave
+      calendar, and any interaction with attendance/usage-session data).
+- [x] **Attendance (Phase 3)** — a pure derived view over existing
+      `UsageSession` records, no new backend surface. Also closes an
+      older-flagged gap: an MR can now see their own usage-session history
+      (`/attendance`), previously admin/manager-only. See
+      `features/attendance/SKILL.md`.
+- [x] **Batch/expiry inventory tracking (Phase 3)** — an optional layer on
+      top of the existing flat `stockQuantity`, plus FEFO-aware dispatch
+      and an expiry-alerts view. See `features/admin/SKILL.md`, which also
+      flags a known gap: Office Admins can't reach these screens today
+      (admin-allowlist-gated routes) despite already having the Firestore
+      rules permission to manage them.
+- [x] **UCPMP compliance log (Phase 3 — final item, Phase 3 now complete)**
+      — append-only gift/sample/sponsorship logging per doctor, with a
+      per-doctor (not per-MR) team dashboard flagging anyone over
+      `TenantConfig.ucpmpAnnualLimitPerDoctor`. The limit is a dashboard
+      flag only, never a block on logging — see `features/compliance/SKILL.md`.
+      Added a new tenant-config field (`ucpmpAnnualLimitPerDoctor`, default
+      `0`), so `scripts/apply_tenant.dart` and `tenants/bharathbiomed/tenant.json`
+      changed too.
+- [x] **Order/invoice tax & payment depth (Phase 4)** — `generateInvoice`
+      now bakes in a tenant-configurable tax rate (`TenantConfig.taxLabel`/
+      `taxRatePercent`, new `functions/src/generatedTenantConfig.ts` for
+      the Cloud-Functions-side twin); a new `recordPayment` Cloud Function
+      + `Payments` collection track `PaymentStatus`
+      (unpaid/partial/paid) and a derived `Invoice.isOverdue`. See
+      `features/orders/SKILL.md`.
+  - Deliberately **not built** in this pass (see the same SKILL.md's "Not
+    built" section): a primary-vs-secondary-sales distinction (would need
+    orders placeable against a `Pharmacy`, not just an `Agency` — a
+    genuinely different feature, not a same-shape field on `Order`), and
+    accounting-ledger CSV export (belongs with Phase 5's reporting/export
+    infra, not built standalone here).
+- [x] **Reporting & exports (Phase 5)** — a shared `ReportExportService`
+      (`core/utils/`) + `ExportMenuButton` (`core/widgets/`) added CSV and
+      formatted-PDF export to the Usage Dashboard, RCPA Dashboard, Team
+      Targets, and Invoices screens, via the OS share sheet (`csv`/`pdf`/
+      `printing` packages — new native dependencies, verified with a real
+      `flutter build apk --debug`, not just `flutter analyze`). See
+      `core/SKILL.md`.
+  - Not built: trend/period-over-period comparison views (the roadmap's
+    other Phase 5 idea) — the export infra above was the higher-value
+    half of this phase; trend views are a smaller follow-up whenever
+    picked up.
+- [x] **Admin web console (Phase 6)** — `flutter build web` now works;
+      `AdminWebShell` (`features/admin_web/`) is a wide-layout navigation
+      shell reusing every admin/team screen unchanged, wired in at the
+      `/admin` route when `kIsWeb`. Scaffolding the web platform surfaced
+      two real platform bugs on the shared startup path (fixed, and
+      verified with actual `flutter build web`/`flutter build apk --debug`
+      runs, not just `flutter analyze`): `push_notification_service.dart`
+      imported `dart:io` (doesn't compile for web at all — switched to
+      `defaultTargetPlatform`), and Crashlytics (no web SDK) was being
+      called unconditionally in `main.dart`. See
+      `features/admin_web/SKILL.md`, which also explains why actually
+      deploying this to Firebase Hosting was left as a documented manual
+      step rather than done here (repointing `hosting.public` risks
+      breaking the already-public Play Store privacy-policy URL).
+  - [ ] **Manual step**: `firebase hosting:sites:create` + hosting target
+        setup + `firebase deploy --only hosting:admin-console` — see that
+        SKILL.md's exact steps.
+  - **Gotcha for next time**: `flutter create . --platforms web` silently
+    rewrote `android/app/src/main/AndroidManifest.xml` (dropped the
+    tablet-only `supports-screens` restriction and the UCropActivity
+    landscape lock + its explanatory comment), `MainActivity.kt`, and
+    `styles.xml` (both toward a newer edge-to-edge template) —
+    none of that was requested by adding the web platform. Caught via
+    `git diff` after the fact and fixed: manifest/UCropActivity reverted
+    to their original tablet-only intent, the edge-to-edge Kotlin/styles
+    changes were kept (they're a genuine, harmless modern-Android pattern
+    that doesn't conflict with this app's kiosk-mode fullscreen) but had
+    their stripped explanatory comments restored. **If you ever re-run
+    `flutter create`** (any `--platforms` flag) on this repo, diff
+    `android/app/src/main/AndroidManifest.xml` afterward before trusting
+    it — this is apparently a "recreate the whole project scaffold" pass
+    under the hood, not additive-only to the platform you asked for.
+- [x] **Notification expansion (Phase 7)** — four new Cloud Function
+      triggers (`onOrderWritten`, `onExpenseClaimWritten`,
+      `onLeaveRequestWritten`, `onDoctorVisitPlanWritten`) react to the
+      existing direct client writes for each workflow — a new pending
+      item pushes whoever in the creator's reporting chain holds the
+      matching `approve_*` permission (a new shared
+      `notifyReportingChainWithPermission` helper), and a decision pushes
+      the creator back. Reuses the pre-existing `sendPushToUser`/
+      `DeviceTokens` primitive unchanged; no client-side Dart changes were
+      needed (an unrecognized push `type` is already a no-op in
+      `PushNotificationService._handleMessage`, so the OS notification
+      banner shows regardless). See the "Targeted notifications" section
+      each of `features/orders`, `features/expenses`, `features/leave`,
+      and `features/doctors`'s `SKILL.md` now has.
+  - Not built: target-threshold alerts (e.g. "80% of target reached") —
+    the roadmap's other Phase 7 idea. Achievement is computed on demand
+    from `Order` sums, not stored, so a real implementation needs either a
+    scheduled function or a trigger on every order status change plus an
+    "already notified this crossing" flag to avoid re-notifying on every
+    subsequent order — more involved than the four triggers above, and
+    lower-value without a specific request for it.
+## 9. Production readiness pass (Phase 8, 2026-07-29)
+
+- [x] **`firestore.rules` self-review** of every rule added/changed in
+      Phases 3-7 (no Firestore emulator available in this environment —
+      `firebase emulators:exec` needs a JDK 21+, only 17 was installed —
+      so this was a careful manual read, not an automated rules-emulator
+      test suite). Found and fixed two real gaps in the `DoctorVisitPlans`
+      rules specifically:
+  - The `allow create` had no `status` restriction at all — an MR could
+    have created their very first plan doc with `status: 'approved'`,
+    forging their own manager sign-off. Now restricted to
+    `status in ['draft', 'pending']` on create, matching the
+    exact-match `status == 'pending'` restriction Orders/ExpenseClaims/
+    LeaveRequests already had on their own create rules (those three were
+    fine; this one was missed when the approval workflow was added).
+  - The MR's own content-edit `allow update` checked that the *old*
+    status wasn't `pending`, but never restricted what the *new* status
+    could become — an MR could take a `rejected` plan and, via a
+    content-edit-shaped write, set `status: 'approved'` themselves. Fixed
+    to only allow the new status to stay unchanged or become `pending`;
+    only the separate manager-decision `allow update` block can ever
+    produce `approved`/`rejected`.
+  - Also simplified a redundant `isAdmin() || isOfficeAdmin()` condition
+    on the `Batches` subcollection rule to just `isOfficeAdmin()` (which
+    already includes `isAdmin()`).
+- [x] **Caught and fixed an unrelated regression**: `flutter create .
+      --platforms web` (Phase 6) had silently rewritten
+      `AndroidManifest.xml`, dropping the tablet-only `supports-screens`
+      restriction and the UCropActivity landscape lock. See Phase 6's
+      entry above ("Gotcha for next time") for the full story and fix —
+      caught via a targeted re-check of `AndroidManifest.xml`/
+      `MainActivity.kt` after the fact, not caught immediately when the
+      web platform was first scaffolded.
+- [x] **Pagination — investigated, deliberately not added.** Every admin
+      list (Manage Employees, etc.) fetches its full collection once and
+      searches client-side over the whole thing. Real query-level
+      pagination would either silently make search incomplete (only
+      searching loaded pages) or require a dedicated search index — a
+      real infrastructure decision, not a small change, and not justified
+      at this app's realistic scale (`ListView.builder` already lazily
+      renders, so there's no rendering-performance problem today). See
+      `features/admin/SKILL.md`'s "Pagination" section for the full
+      reasoning and what to do if this ever becomes real — don't
+      `.limit()` a `fetchAll()`-backed screen without also deciding what
+      happens to its search box.
+- [x] **Per-tenant data export runbook** —
+      [docs/DATA_EXPORT_RUNBOOK.md](DATA_EXPORT_RUNBOOK.md): `gcloud
+      firestore export` + a Storage bucket copy, leaning on the fact that
+      each tenant already has their own Firebase project (per Phase 1's
+      per-tenant-build decision), so "export tenant X's data" is just
+      "export project X" — no per-tenant filtering needed. Manual runbook,
+      not automated in-app on purpose.
+- [ ] **Still open** (not attempted this pass, still real gaps):
+  - Historical test-coverage gaps from before this roadmap started:
+    admin controllers (`employee_controller.dart`,
+    `designation_controller.dart`, `admin_catalog_controller.dart`,
+    `usage_dashboard_controller.dart`), the tracking module
+    (`location_service.dart`, `usage_tracking_service.dart`), and Cloud
+    Functions (zero tests today — would need the Firebase emulator, which
+    needs a JDK 21+ this environment doesn't have installed). Every *new*
+    module built in Phases 3-7 does have real test coverage (see each
+    phase's own entry above) — this remaining gap is specifically the
+    pre-existing, pre-roadmap surface flagged back in section 1.
+  - No automated Firestore-rules test suite (the emulator-based kind
+    `docs/TODO.md` section 2 already called for) — this pass's rules
+    review was manual reading, which is exactly the kind of check an
+    automated test suite exists to make less error-prone and repeatable.
+    Worth real investment once a JDK is available in whatever environment
+    picks this up next.
+
+## Roadmap status (through Phase 8, 2026-07-29)
+
+All 8 phases of the "white-label + full gap closure" roadmap have had at
+least one pass: **Phase 1** (white-label/tenant config), **Phase 2**
+(portrait+landscape), **Phase 3** (expenses, visit-plan approval, leave,
+attendance, batch/expiry inventory, UCPMP compliance), **Phase 4**
+(order/invoice tax & payment), **Phase 5** (CSV/PDF export), **Phase 6**
+(admin web console), **Phase 7** (targeted approval notifications),
+**Phase 8** (this section). Every phase's own entry above lists what was
+deliberately *not* built alongside what was — read those before assuming
+a phase is 100% complete rather than "has real, working coverage of its
+core ask." The two things every phase's work agreed to leave for genuine
+follow-up work, not oversights:
+
+1. **`docs/BUSINESS_OVERVIEW.md` needs a full refresh pass** — it
+   predates the doctors/agencies/orders/targets/RCPA/team hierarchy merge
+   entirely (still describes only the catalog+admin app from before
+   that), so it's no longer a reliable cross-verification checklist for
+   what the app actually does today. Each feature folder's own `SKILL.md`
+   is the accurate source until that refresh happens.
+2. **Phase 2's manual on-device orientation verification** was never done
+   (no emulator/device was available in the environment that built it) —
+   `flutter analyze`/`flutter test`/real device builds all pass, but
+   nobody has actually rotated a physical device through every screen yet.

@@ -4,6 +4,10 @@ gradle-wrapper.jar
 /gradlew
 /gradlew.bat
 /local.properties
+# Per-tenant build values (see android/app/build.gradle.kts) — copied in by
+# scripts/new_tenant.sh from tenants/<tenantId>/tenant.properties, not
+# meant to be committed at this path.
+/tenant.properties
 GeneratedPluginRegistrant.java
 
 # Remember to never publicly share your keystore.

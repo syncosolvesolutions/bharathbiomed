@@ -137,6 +137,11 @@ class AdminHomeScreen extends ConsumerWidget {
             onPressed: () => context.push('/admin/inventory'),
           ),
           IconButton(
+            icon: const Icon(Icons.warning_amber_outlined),
+            tooltip: 'Expiry Alerts',
+            onPressed: () => context.push('/admin/inventory/expiry-alerts'),
+          ),
+          IconButton(
             icon: const Icon(Icons.request_quote_outlined),
             tooltip: 'Invoices',
             onPressed: () => context.push('/invoices'),

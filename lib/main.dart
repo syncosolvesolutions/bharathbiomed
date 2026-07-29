@@ -11,18 +11,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/error/crash_reporter.dart';
 import 'core/notifications/push_notification_service.dart';
+import 'core/utils/app_orientation.dart';
 import 'firebase_options.dart';
 
 /// Bootstraps Firebase and global error reporting, then hands off to [BharathBioMedApp].
-/// This is a tablet-only, landscape-locked, fullscreen (kiosk-style) app —
-/// hence the orientation lock and system UI overlay removal below.
+/// The mobile app is tablet-only, fullscreen (kiosk-style), and supports
+/// both portrait and landscape everywhere except the slideshow presentation
+/// screen, which forces landscape for itself — see
+/// features/slideshow/slideshow_screen.dart — hence the permissive
+/// (portrait + landscape) orientation set and system UI overlay removal
+/// below. None of that applies to the web build (the admin console, see
+/// `features/admin_web/SKILL.md`) — a browser tab has no orientation lock
+/// or system UI overlays to manage, so those calls are skipped on
+/// `kIsWeb`. Crashlytics has no web SDK at all (unlike Analytics, which
+/// does support web) — every Crashlytics call below is skipped on web for
+/// the same reason `CrashReporter`'s own doc comment already limited it to
+/// Android/iOS.
 void main() async {
   BindingBase.debugZoneErrorsAreFatal = true;
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  if (!kIsWeb) {
+    SystemChrome.setPreferredOrientations(defaultOrientations);
+  }
   // Keep the native splash on screen until LoginScreen removes it post-frame,
   // so there's no flash of a blank window while Firebase initializes below.
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
@@ -34,24 +44,30 @@ void main() async {
   // it's harmless and free.
   FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
 
-  // Must be registered before runApp so a catalog-update push can trigger a
-  // sync even while the app is backgrounded or fully terminated. Foreground
-  // handling (PushNotificationService.initialize) is wired up from app.dart
-  // once a BuildContext/Ref exists.
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  if (!kIsWeb) {
+    // Must be registered before runApp so a catalog-update push can trigger
+    // a sync even while the app is backgrounded or fully terminated.
+    // Foreground handling (PushNotificationService.initialize) is wired up
+    // from app.dart once a BuildContext/Ref exists. Web push needs a
+    // service worker this project doesn't have set up yet, and the admin
+    // console has no offline-sync flow to trigger anyway.
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-  FlutterError.onError = (errorDetails) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
 
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
 
-  await CrashReporter.initialize();
+    await CrashReporter.initialize();
+  }
 
   runApp(const ProviderScope(child: BharathBioMedApp()));
 
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+  if (!kIsWeb) {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+  }
 }

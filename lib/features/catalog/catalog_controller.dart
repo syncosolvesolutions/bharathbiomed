@@ -28,7 +28,7 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
     return ref.read(productRepositoryProvider).loadCachedCatalog();
   }
 
-  static const _totalSteps = 11;
+  static const _totalSteps = 14;
 
   /// Downloads the latest catalog from Firestore and overwrites the local
   /// cache, then pushes every locally-queued offline record (usage sessions,
@@ -140,6 +140,33 @@ class CatalogController extends AsyncNotifier<CatalogSnapshot> {
       await ref.read(rcpaRepositoryProvider).uploadPending();
     } catch (error) {
       debugPrint('CatalogController.sync: RCPA uploadPending failed error=$error');
+    }
+    completed++;
+
+    report('Uploading expense claims…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending expense claims');
+      await ref.read(expenseClaimRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: expense claim uploadPending failed error=$error');
+    }
+    completed++;
+
+    report('Uploading leave requests…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending leave requests');
+      await ref.read(leaveRequestRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: leave request uploadPending failed error=$error');
+    }
+    completed++;
+
+    report('Uploading compliance logs…');
+    try {
+      debugPrint('CatalogController.sync: uploading pending compliance logs');
+      await ref.read(complianceLogRepositoryProvider).uploadPending();
+    } catch (error) {
+      debugPrint('CatalogController.sync: compliance log uploadPending failed error=$error');
     }
     completed++;
 
