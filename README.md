@@ -114,8 +114,8 @@ needs to see and change current server data, not a stale local cache (see
 ## Prerequisites
 
 - Flutter SDK (see `environment.sdk` in `pubspec.yaml` for the version range)
-- A Firebase CLI login with access to the `bharathbiomedpharma-6c6c3` project
-  (`firebase login`, then `firebase use bharathbiomedpharma-6c6c3`)
+- A Firebase CLI login with access to the `bharathbiomed-14368` project
+  (`firebase login`, then `firebase use bharathbiomed-14368`)
 - Node.js 20+ (for `functions/`)
 
 ## Running the app
@@ -202,7 +202,7 @@ account with a first/last name; the app derives a username
 (`first_lastname`, deduped with a numeric suffix on collision) and shows it
 to the admin alongside the password to hand to that MR. Under the hood,
 Firebase Auth still needs an email-shaped identifier, so the username is
-turned into `mr-<username>@bharathbiomedpharma-6c6c3.firebaseapp.com` — see
+turned into `mr-<username>@bharathbiomed-14368.firebaseapp.com` — see
 `lib/core/auth/employee_login.dart` and `functions/src/adminAccess.ts`
 (`usernameToEmail`), which must stay in sync.
 

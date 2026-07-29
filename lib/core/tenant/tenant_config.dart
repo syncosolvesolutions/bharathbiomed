@@ -142,7 +142,7 @@ const currentTenant = TenantConfig(
     'Regional Business Manager',
     'Zonal Business Manager',
   ],
-  firebaseProjectId: 'bharathbiomedpharma-6c6c3',
+  firebaseProjectId: 'bharathbiomed-14368',
   ucpmpAnnualLimitPerDoctor: 0.0,
   taxLabel: 'GST',
   taxRatePercent: 12.0,

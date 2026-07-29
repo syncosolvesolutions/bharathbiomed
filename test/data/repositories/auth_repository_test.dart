@@ -29,7 +29,7 @@ void main() {
       await repository.signIn('rajesh_kumar', 'secret');
 
       verify(() => remote.signInWithEmailAndPassword(
-            'mr-rajesh_kumar@bharathbiomedpharma-6c6c3.firebaseapp.com',
+            'mr-rajesh_kumar@bharathbiomed-14368.firebaseapp.com',
             'secret',
           )).called(1);
     });

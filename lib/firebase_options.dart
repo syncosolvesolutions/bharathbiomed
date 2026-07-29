@@ -25,9 +25,15 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        return macos;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for macos - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.windows:
-        return windows;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for windows - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.linux:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for linux - '
@@ -41,48 +47,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAxrdRbnjEY_HeGeu5snnzkfrXDKcXYPL8',
-    appId: '1:830540132112:web:f5fdbb8365e3bfbbed3f95',
-    messagingSenderId: '830540132112',
-    projectId: 'bharathbiomedpharma-6c6c3',
-    authDomain: 'bharathbiomedpharma-6c6c3.firebaseapp.com',
-    storageBucket: 'bharathbiomedpharma-6c6c3.firebasestorage.app',
-    measurementId: 'G-SSHM1PXVNL',
+    apiKey: 'AIzaSyCf0exjeSf6IQcoGAOnKmVeO8g3pk_hBVY',
+    appId: '1:29666587146:web:3c1112a124f51e921125f3',
+    messagingSenderId: '29666587146',
+    projectId: 'bharathbiomed-14368',
+    authDomain: 'bharathbiomed-14368.firebaseapp.com',
+    storageBucket: 'bharathbiomed-14368.firebasestorage.app',
+    measurementId: 'G-6GFPQWNLH1',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCa7iP0Kq52SuNZHQVKfwSlCDdGoxNazW4',
-    appId: '1:830540132112:android:e222df6854b8bf5eed3f95',
-    messagingSenderId: '830540132112',
-    projectId: 'bharathbiomedpharma-6c6c3',
-    storageBucket: 'bharathbiomedpharma-6c6c3.firebasestorage.app',
+    apiKey: 'AIzaSyBBbqbQwAsiaGqPy9CGBBM8EXBtOM--gvM',
+    appId: '1:29666587146:android:3c2e6483de7c32ff1125f3',
+    messagingSenderId: '29666587146',
+    projectId: 'bharathbiomed-14368',
+    storageBucket: 'bharathbiomed-14368.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyD34UCGRAzuLkcTBnpGSxBwETShloKPr-I',
-    appId: '1:830540132112:ios:5be2e7cbb6fb6799ed3f95',
-    messagingSenderId: '830540132112',
-    projectId: 'bharathbiomedpharma-6c6c3',
-    storageBucket: 'bharathbiomedpharma-6c6c3.firebasestorage.app',
+    apiKey: 'AIzaSyDEa_m7-zsK4llLzTzGLffbyKorypwEsr8',
+    appId: '1:29666587146:ios:dc9191a3c3dc8ecf1125f3',
+    messagingSenderId: '29666587146',
+    projectId: 'bharathbiomed-14368',
+    storageBucket: 'bharathbiomed-14368.firebasestorage.app',
     iosBundleId: 'com.syncosolve.bharathbiomedpharma',
-  );
-
-  static const FirebaseOptions macos = FirebaseOptions(
-    apiKey: 'AIzaSyD34UCGRAzuLkcTBnpGSxBwETShloKPr-I',
-    appId: '1:830540132112:ios:5be2e7cbb6fb6799ed3f95',
-    messagingSenderId: '830540132112',
-    projectId: 'bharathbiomedpharma-6c6c3',
-    storageBucket: 'bharathbiomedpharma-6c6c3.firebasestorage.app',
-    iosBundleId: 'com.syncosolve.bharathbiomedpharma',
-  );
-
-  static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyAxrdRbnjEY_HeGeu5snnzkfrXDKcXYPL8',
-    appId: '1:830540132112:web:0f1c6602e0136b33ed3f95',
-    messagingSenderId: '830540132112',
-    projectId: 'bharathbiomedpharma-6c6c3',
-    authDomain: 'bharathbiomedpharma-6c6c3.firebaseapp.com',
-    storageBucket: 'bharathbiomedpharma-6c6c3.firebasestorage.app',
-    measurementId: 'G-8G5Q3M2GHC',
   );
 }

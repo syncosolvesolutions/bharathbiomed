@@ -12,11 +12,11 @@ void main() {
     });
 
     test('turns a bare username into the synthetic MR email', () {
-      expect(resolveLoginEmail('rajesh_kumar'), 'mr-rajesh_kumar@bharathbiomedpharma-6c6c3.firebaseapp.com');
+      expect(resolveLoginEmail('rajesh_kumar'), 'mr-rajesh_kumar@bharathbiomed-14368.firebaseapp.com');
     });
 
     test('lowercases the username so login is case-insensitive', () {
-      expect(resolveLoginEmail('Rajesh_Kumar'), 'mr-rajesh_kumar@bharathbiomedpharma-6c6c3.firebaseapp.com');
+      expect(resolveLoginEmail('Rajesh_Kumar'), 'mr-rajesh_kumar@bharathbiomed-14368.firebaseapp.com');
     });
   });
 }

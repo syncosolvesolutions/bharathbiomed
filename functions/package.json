@@ -8,6 +8,9 @@
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
     "migrate:designations": "tsc scripts/migrateDesignations.ts --outDir scripts/lib --module commonjs --target es2019 --esModuleInterop --skipLibCheck && node scripts/lib/migrateDesignations.js",
+    "clone:catalog": "tsc scripts/cloneProductsCatalog.ts --outDir scripts/lib --module commonjs --target es2019 --esModuleInterop --skipLibCheck && node scripts/lib/cloneProductsCatalog.js",
+    "test:seed": "tsc scripts/seedTestData.ts --outDir scripts/lib --module commonjs --target es2019 --esModuleInterop --skipLibCheck && node scripts/lib/seedTestData.js",
+    "test:cleanup": "tsc scripts/cleanupTestData.ts --outDir scripts/lib --module commonjs --target es2019 --esModuleInterop --skipLibCheck && node scripts/lib/cleanupTestData.js",
     "test": "bash scripts/test-with-emulator.sh",
     "test:rules": "bash scripts/test-with-emulator.sh --testPathPatterns=firestoreRules"
   },

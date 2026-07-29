@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>API_KEY</key>
-	<string>AIzaSyD34UCGRAzuLkcTBnpGSxBwETShloKPr-I</string>
+	<string>AIzaSyDEa_m7-zsK4llLzTzGLffbyKorypwEsr8</string>
 	<key>GCM_SENDER_ID</key>
-	<string>830540132112</string>
+	<string>29666587146</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
 	<string>com.syncosolve.bharathbiomedpharma</string>
 	<key>PROJECT_ID</key>
-	<string>bharathbiomedpharma-6c6c3</string>
+	<string>bharathbiomed-14368</string>
 	<key>STORAGE_BUCKET</key>
-	<string>bharathbiomedpharma-6c6c3.firebasestorage.app</string>
+	<string>bharathbiomed-14368.firebasestorage.app</string>
 	<key>IS_ADS_ENABLED</key>
 	<false></false>
 	<key>IS_ANALYTICS_ENABLED</key>
@@ -25,6 +25,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:830540132112:ios:5be2e7cbb6fb6799ed3f95</string>
+	<string>1:29666587146:ios:dc9191a3c3dc8ecf1125f3</string>
 </dict>
 </plist>

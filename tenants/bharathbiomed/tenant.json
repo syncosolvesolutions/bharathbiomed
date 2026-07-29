@@ -15,7 +15,7 @@
   "taxLabel": "GST",
   "taxRatePercent": 12,
   "paymentTermsDays": 30,
-  "firebaseProjectId": "bharathbiomedpharma-6c6c3",
+  "firebaseProjectId": "bharathbiomed-14368",
   "androidApplicationId": "com.syncosolve.bharathbiomedpharma",
   "iosBundleId": "com.syncosolve.bharathbiomedpharma",
   "logoPath": "assets/bnewlogo.jpeg",

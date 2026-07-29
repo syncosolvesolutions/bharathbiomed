@@ -65,7 +65,7 @@ void main() {
 
   group('handleAppResumed', () {
     test('starts a session for an MR, with the best-effort location attached', () async {
-      final mr = buildUser(uid: 'rep1', email: 'mr-rajesh@bharathbiomedpharma-6c6c3.firebaseapp.com');
+      final mr = buildUser(uid: 'rep1', email: 'mr-rajesh@bharathbiomed-14368.firebaseapp.com');
       when(() => repository.startSession(
             employeeUid: any(named: 'employeeUid'),
             username: any(named: 'username'),
@@ -77,7 +77,7 @@ void main() {
 
       verify(() => repository.startSession(
             employeeUid: 'rep1',
-            username: 'mr-rajesh@bharathbiomedpharma-6c6c3.firebaseapp.com',
+            username: 'mr-rajesh@bharathbiomed-14368.firebaseapp.com',
             latitude: 12.9,
             longitude: 77.6,
           )).called(1);
