@@ -7,8 +7,8 @@ import '../../domain/models/expense_claim.dart';
 /// rules only lets them write their own `mrUid`, `status: pending`);
 /// approve/reject are also direct writes, gated by `approve_expenses` +
 /// reporting-chain membership (or global visibility) — mirrors
-/// [OrderRemoteDataSource], minus the dispatch/invoice Cloud Functions
-/// since a claim has no further fulfillment step once approved.
+/// [OrderRemoteDataSource], minus the dispatch Cloud Function since a claim
+/// has no further fulfillment step once approved.
 class ExpenseClaimRemoteDataSource {
   ExpenseClaimRemoteDataSource({FirebaseFirestore? firestore}) : _firestore = firestore ?? FirebaseFirestore.instance;
 

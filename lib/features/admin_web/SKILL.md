@@ -74,11 +74,23 @@ unilaterally from a code change. To actually deploy this console:
   the deliberate tradeoff for reusing 20+ screens' logic unchanged rather
   than rebuilding each one's presentation layer; a screen-by-screen
   desktop redesign is a plausible follow-up, not done here.
-- **Admin-only** — a manager (Office Admin or otherwise) who isn't the
-  hardcoded admin account still gets the mobile catalog+`/team` flow even
-  on a web build, since `/team` isn't routed through this shell. Extending
-  the shell to managers is a reasonable next step if office staff who
-  aren't the admin need this too.
+- **Admin or Office Admin only** — as of 2026-07-29, an Office Admin (a
+  real employee whose designation category is Office Administration, not
+  the hardcoded admin) can also reach this shell (see
+  `core/router/app_router.dart`'s redirect), but sees a reduced sidebar —
+  `_officeAdminSections` in `admin_web_shell.dart`, filtered by
+  `isAdminProvider` at build time — covering only Agencies/Pharmacies/
+  Agency-Pharmacy-Requests and Inventory/Expiry Alerts, mirroring exactly
+  what `firestore.rules`' `isOfficeAdmin()` grants. A manager who is
+  neither the hardcoded admin nor an Office Admin still gets the mobile
+  catalog+`/team` flow even on a web build, since `/team` isn't routed
+  through this shell at all — as of the "RM and above can approve all
+  requests" change, an `approve_requests` holder now reaches Doctor/
+  Agency-Pharmacy request review from `/team` on mobile (see
+  `features/team/team_home_screen.dart`'s two conditional tiles), but this
+  web shell still doesn't show those destinations to that role — extending
+  the shell to every permission-holding manager (not just Office Admin) is
+  a plausible next step, not done here.
 - **No offline support** — unlike the mobile app, this console always
   reads Firestore live (same as every embedded screen already did on
   mobile for admin/team data — nothing new here, just calling it out since

@@ -26,4 +26,12 @@ class MyOrdersController extends AsyncNotifier<List<Order>> {
     debugPrint('MyOrdersController.refresh: refreshing');
     state = await AsyncValue.guard(build);
   }
+
+  /// Ownership-scoped in firestore.rules — only this order's own creator may
+  /// call it, and only while `dispatched`.
+  Future<void> markDelivered(String orderId) async {
+    debugPrint('MyOrdersController.markDelivered: orderId=$orderId');
+    await ref.read(orderRepositoryProvider).markDelivered(orderId);
+    await refresh();
+  }
 }

@@ -39,8 +39,12 @@ class OrderItem extends Equatable {
 
 /// `pending` (awaiting approval) -> `approved`/`rejected` -> (if approved)
 /// `dispatched` (stock decremented — see the `dispatchOrder` Cloud
-/// Function) -> `invoiced` (see the `generateInvoice` Cloud Function).
-enum OrderStatus { pending, approved, rejected, dispatched, invoiced }
+/// Function, set by the office when the product is physically sent) ->
+/// `delivered` (a direct firestore.rules-gated write by the order's own
+/// creator only — see `markDelivered` — set by the MR once the product is
+/// physically received). Invoicing/cheques/payments are handled entirely
+/// offline outside the app, so there is no further status after this.
+enum OrderStatus { pending, approved, rejected, dispatched, delivered }
 
 OrderStatus orderStatusFromString(String? value) {
   switch (value) {
@@ -50,8 +54,8 @@ OrderStatus orderStatusFromString(String? value) {
       return OrderStatus.rejected;
     case 'dispatched':
       return OrderStatus.dispatched;
-    case 'invoiced':
-      return OrderStatus.invoiced;
+    case 'delivered':
+      return OrderStatus.delivered;
     default:
       return OrderStatus.pending;
   }
@@ -62,16 +66,17 @@ String orderStatusToJson(OrderStatus status) => switch (status) {
       OrderStatus.approved => 'approved',
       OrderStatus.rejected => 'rejected',
       OrderStatus.dispatched => 'dispatched',
-      OrderStatus.invoiced => 'invoiced',
+      OrderStatus.delivered => 'delivered',
     };
 
 /// An MR-placed order against an [Agency] — the full commercial lifecycle:
 /// [OrderStatus.pending] (created here) -> approve/reject (a direct
 /// firestore.rules-gated write — see `approve_orders`) -> dispatch (Cloud
-/// Function, decrements inventory) -> invoice (Cloud Function). Created
-/// offline-first like [DoctorVisitLog] (queued locally, uploaded on the next
-/// sync); once uploaded, its live status is only ever read from Firestore
-/// directly (see `OrderRepository.fetchMine`), not re-cached locally.
+/// Function, decrements inventory) -> delivered (a direct, ownership-scoped
+/// write by the MR who created it). Created offline-first like
+/// [DoctorVisitLog] (queued locally, uploaded on the next sync); once
+/// uploaded, its live status is only ever read from Firestore directly (see
+/// `OrderRepository.fetchMine`), not re-cached locally.
 class Order extends Equatable {
   final String id;
   final String agencyId;
@@ -85,7 +90,7 @@ class Order extends Equatable {
   final String? rejectedReason;
   final String? dispatchedByUid;
   final DateTime? dispatchedAt;
-  final String? invoiceId;
+  final DateTime? deliveredAt;
   final DateTime? createdAt;
 
   const Order({
@@ -101,7 +106,7 @@ class Order extends Equatable {
     this.rejectedReason,
     this.dispatchedByUid,
     this.dispatchedAt,
-    this.invoiceId,
+    this.deliveredAt,
     this.createdAt,
   });
 
@@ -124,7 +129,7 @@ class Order extends Equatable {
       rejectedReason: json['rejectedReason'] as String?,
       dispatchedByUid: json['dispatchedByUid'] as String?,
       dispatchedAt: _dateFromAny(json['dispatchedAt']),
-      invoiceId: json['invoiceId'] as String?,
+      deliveredAt: _dateFromAny(json['deliveredAt']),
       createdAt: _dateFromAny(json['createdAt']),
     );
   }
@@ -168,7 +173,7 @@ class Order extends Equatable {
         rejectedReason,
         dispatchedByUid,
         dispatchedAt,
-        invoiceId,
+        deliveredAt,
         createdAt,
       ];
 }

@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../domain/models/permission.dart';
+import 'team_access.dart';
 
 /// Entry point for a manager's view of their own reporting-chain downline
 /// (or, for a `view_global_data` holder, everyone): usage/location,
 /// doctor-visit-log reports, the order workflow queue, team targets, RCPA
-/// entries, expense-claim and leave-request approvals, visit-plan
-/// approvals, derived attendance, and the UCPMP compliance dashboard.
-/// Reachable by any signed-in employee; every screen behind it simply
-/// shows an empty state if the signed-in user doesn't actually manage
-/// anyone (see `resolveVisibleEmployees`) or lacks the specific permission
-/// that screen's actions need (e.g. `approve_expenses`).
-class TeamHomeScreen extends StatelessWidget {
+/// entries, expense-claim approvals, visit-plan approvals, Doctor/Agency-
+/// Pharmacy request reviews (for an `approve_requests` holder — see below),
+/// and the UCPMP compliance dashboard. Reachable by any signed-in employee;
+/// every screen behind it simply shows an empty state if the signed-in user
+/// doesn't actually manage anyone (see `resolveVisibleEmployees`) or lacks
+/// the specific permission that screen's actions need (e.g.
+/// `approve_expenses`).
+class TeamHomeScreen extends ConsumerWidget {
   const TeamHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canApproveRequests = ref.watch(hasPermissionProvider(Permission.approveRequests));
+
     return Scaffold(
       appBar: AppBar(title: const Text('My Team')),
       body: ListView(
@@ -42,7 +49,7 @@ class TeamHomeScreen extends StatelessWidget {
             child: ListTile(
               leading: const Icon(Icons.receipt_long_outlined),
               title: const Text('Order Workflow'),
-              subtitle: const Text('Approve, reject, dispatch, and invoice orders from your team.'),
+              subtitle: const Text('Approve, reject, and dispatch orders from your team.'),
               trailing: const Icon(Icons.arrow_forward_ios, size: 16),
               onTap: () => context.push('/team/orders'),
             ),
@@ -83,24 +90,26 @@ class TeamHomeScreen extends StatelessWidget {
               onTap: () => context.push('/team/visit-plans'),
             ),
           ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.event_busy_outlined),
-              title: const Text('Leave Requests'),
-              subtitle: const Text("Approve or reject your team's leave requests."),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => context.push('/team/leave'),
+          if (canApproveRequests) ...[
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.local_hospital_outlined),
+                title: const Text('Doctor Requests'),
+                subtitle: const Text('Review proposed doctor additions/edits from any MR.'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => context.push('/doctor-requests'),
+              ),
             ),
-          ),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.event_available_outlined),
-              title: const Text('Attendance'),
-              subtitle: const Text("See your team's derived day-by-day attendance."),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              onTap: () => context.push('/team/attendance'),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('Agency / Pharmacy Requests'),
+                subtitle: const Text('Review proposed new agencies/pharmacies from any MR.'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => context.push('/entity-requests'),
+              ),
             ),
-          ),
+          ],
           Card(
             child: ListTile(
               leading: const Icon(Icons.gavel_outlined),

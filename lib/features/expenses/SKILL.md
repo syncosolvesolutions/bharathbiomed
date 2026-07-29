@@ -3,7 +3,7 @@
 An MR's TA/DA (Travel & Daily Allowance) expense claims: file one, a
 manager with `approve_expenses` approves/rejects it. Same offline-first
 approval-workflow shape as `features/orders` (see that folder's screens for
-the fullest version of this pattern — dispatch/invoice steps included) —
+the fullest version of this pattern — dispatch/delivery steps included) —
 this is the simpler variant, since a claim has nothing to fulfill once
 approved.
 
@@ -23,7 +23,7 @@ approved.
   — a manager's review queue (route `/team/expenses`), scoped to their own
   reporting-chain downline via `resolveVisibleEmployees`, or everyone for a
   `view_global_data` holder. Only pending claims show (approved/rejected are
-  terminal, mirrors `OrderApprovalController` minus the dispatch/invoice
+  terminal, mirrors `OrderApprovalController` minus the dispatch/delivery
   statuses `Order` has and `ExpenseClaim` doesn't).
 
 ## Data layer
@@ -33,8 +33,8 @@ approved.
 - `data/remote/expense_claim_remote_data_source.dart` — the `ExpenseClaims`
   Firestore collection. Approve/reject are direct client writes (gated by
   `firestore.rules`' `approve_expenses` check), not Cloud Functions — unlike
-  `Order.dispatch`, there's no second resource (stock, an invoice counter)
-  needing an atomic transaction, so a plain rules-gated write is enough.
+  `Order.dispatch`, there's no second resource (stock) needing an atomic
+  transaction, so a plain rules-gated write is enough.
 - `data/repositories/expense_claim_repository.dart` — combines the two:
   `submit` only ever queues locally; `uploadPending` (called from
   `CatalogController.sync`) is what actually reaches Firestore.

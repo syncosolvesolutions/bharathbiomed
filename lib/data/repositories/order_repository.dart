@@ -8,7 +8,7 @@ import '../remote/order_remote_data_source.dart';
 /// An MR's placed orders, offline-first: [submit] only ever touches the
 /// local queue (works standing in a pharmacy/agency visit with no signal);
 /// [uploadPending] is what the sync pipeline calls to actually reach
-/// Firestore. Once uploaded, live status (approved/dispatched/invoiced) is
+/// Firestore. Once uploaded, live status (approved/dispatched/delivered) is
 /// only ever read via [fetchMine]/[fetchPending] — mirrors
 /// [DoctorChangeRequestRepository].
 class OrderRepository {
@@ -68,4 +68,7 @@ class OrderRepository {
 
   /// `dispatch_orders`-gated Cloud Function.
   Future<void> dispatch(String orderId) => _remote.dispatch(orderId);
+
+  /// Ownership-scoped direct write — see [OrderRemoteDataSource.markDelivered].
+  Future<void> markDelivered(String orderId) => _remote.markDelivered(orderId);
 }

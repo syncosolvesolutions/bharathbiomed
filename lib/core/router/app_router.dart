@@ -40,20 +40,13 @@ import '../../features/entity_requests/entity_requests_screen.dart';
 import '../../features/expenses/expense_claim_approval_screen.dart';
 import '../../features/expenses/expense_claim_form_screen.dart';
 import '../../features/expenses/my_expense_claims_screen.dart';
-import '../../features/leave/leave_request_approval_screen.dart';
-import '../../features/leave/leave_request_form_screen.dart';
-import '../../features/leave/my_leave_requests_screen.dart';
 import '../../features/legal/legal_content.dart';
 import '../../features/legal/legal_document_screen.dart';
 import '../../features/agencies/agencies_screen.dart';
 import '../../features/agencies/agency_form_screen.dart';
-import '../../features/attendance/attendance_dashboard_screen.dart';
-import '../../features/attendance/employee_attendance_screen.dart';
-import '../../features/attendance/my_attendance_screen.dart';
 import '../../features/compliance/compliance_dashboard_screen.dart';
 import '../../features/compliance/compliance_log_form_screen.dart';
 import '../../features/compliance/my_compliance_logs_screen.dart';
-import '../../features/orders/invoices_screen.dart';
 import '../../features/orders/my_orders_screen.dart';
 import '../../features/orders/order_approval_screen.dart';
 import '../../features/orders/order_form_screen.dart';
@@ -72,6 +65,7 @@ import '../../features/targets/team_targets_screen.dart';
 import '../../features/team/employee_rcpa_entries_screen.dart';
 import '../../features/team/employee_visit_logs_screen.dart';
 import '../../features/team/rcpa_dashboard_screen.dart';
+import '../../features/team/team_access.dart';
 import '../../features/team/team_home_screen.dart';
 import '../../features/team/visit_log_dashboard_screen.dart';
 import '../auth/admin_access.dart';
@@ -107,8 +101,34 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Admin routes are gated server-side too (Firestore rules, Cloud
       // Functions) — this redirect just keeps a non-admin (or a logged-out
       // user navigating here directly) from ever seeing the admin UI.
+      // An Office Admin (a real employee whose designation category is
+      // Office Administration — see team_access.dart's isOfficeAdminProvider)
+      // is narrower than the hardcoded admin allowlist: firestore.rules'
+      // isOfficeAdmin() only grants Inventory (stockQuantity/Batches) and
+      // Agency/Pharmacy management, so that's the only slice of `/admin/*`
+      // they're let through to here, not the full admin section (Employees/
+      // Designations/Products CRUD stay hardcoded-admin-only, since those
+      // still require the admin allowlist server-side too). On web, that
+      // slice is just the '/admin' route itself — AdminWebShell filters its
+      // own sidebar down to this role's destinations, and never navigates
+      // via go_router sub-routes internally. On mobile there's no shell, so
+      // an Office Admin skips AdminHomeScreen's full tile grid entirely and
+      // goes straight to the Inventory screens (see features/admin/SKILL.md's
+      // "Known gap", now closed).
       final onAdminRoute = state.matchedLocation.startsWith('/admin');
-      if (onAdminRoute && !isAdminEmail(user?.email)) return '/catalog';
+      if (onAdminRoute && !isAdminEmail(user?.email)) {
+        if (!ref.read(isOfficeAdminProvider)) return '/catalog';
+        const officeAdminMobileRoutes = {
+          '/admin/inventory',
+          '/admin/inventory/batches',
+          '/admin/inventory/expiry-alerts',
+        };
+        if (kIsWeb) {
+          if (state.matchedLocation != '/admin') return '/admin';
+        } else if (!officeAdminMobileRoutes.contains(state.matchedLocation)) {
+          return '/admin/inventory';
+        }
+      }
 
       // Mandatory first-login profile completion (photo + name) for an MR
       // account. Scoped to non-admin accounts only, and only once their
@@ -160,8 +180,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           if (state.extra is! Employee) return '/team/rcpa';
         case '/admin/inventory/batches':
           if (state.extra is! Product) return '/admin/inventory';
-        case '/team/attendance/detail':
-          if (state.extra is! Employee) return '/team/attendance';
       }
 
       return null;
@@ -275,13 +293,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => PharmacyFormScreen(pharmacy: state.extra as Pharmacy),
       ),
       GoRoute(path: '/entity-requests', builder: (context, state) => const EntityRequestsScreen()),
-      // Orders: an MR's own place-order flow, plus the team workflow queue
-      // (approve/reject/dispatch/invoice) — not admin-gated, same reasoning
-      // as /team/* (scoped in-screen by permission + reporting chain).
+      // Doctor-request review, reachable outside /admin (unlike
+      // /admin/doctors/requests) for an `approve_requests` holder who isn't
+      // the hardcoded admin — see team_home_screen.dart's "Doctor Requests"
+      // tile. Same screen/widget as the admin-only route.
+      GoRoute(path: '/doctor-requests', builder: (context, state) => const DoctorRequestsScreen()),
+      // Orders: an MR's own place-order flow (including their own "Mark
+      // Delivered" once dispatched), plus the team workflow queue (approve/
+      // reject/dispatch) — not admin-gated, same reasoning as /team/*
+      // (scoped in-screen by permission + reporting chain).
       GoRoute(path: '/orders', builder: (context, state) => const MyOrdersScreen()),
       GoRoute(path: '/orders/add', builder: (context, state) => const OrderFormScreen()),
       GoRoute(path: '/team/orders', builder: (context, state) => const OrderApprovalScreen()),
-      GoRoute(path: '/invoices', builder: (context, state) => const InvoicesScreen()),
       // Targets: an MR's own current-month target vs. achievement, plus the
       // team view + set-target action for an RM-or-above (not admin-gated,
       // same reasoning as /team/*).
@@ -308,19 +331,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Visit plan (beat/route plan) approvals — the plan itself is edited
       // at /doctors/plan; this is just the team review queue.
       GoRoute(path: '/team/visit-plans', builder: (context, state) => const VisitPlanApprovalScreen()),
-      // Leave requests: an MR's own filed requests + form, plus the team
-      // approval queue (not admin-gated, same reasoning as /team/*).
-      GoRoute(path: '/leave', builder: (context, state) => const MyLeaveRequestsScreen()),
-      GoRoute(path: '/leave/add', builder: (context, state) => const LeaveRequestFormScreen()),
-      GoRoute(path: '/team/leave', builder: (context, state) => const LeaveRequestApprovalScreen()),
-      // Attendance: an MR's own derived attendance, plus the team dashboard
-      // (not admin-gated, same reasoning as /team/*).
-      GoRoute(path: '/attendance', builder: (context, state) => const MyAttendanceScreen()),
-      GoRoute(path: '/team/attendance', builder: (context, state) => const AttendanceDashboardScreen()),
-      GoRoute(
-        path: '/team/attendance/detail',
-        builder: (context, state) => EmployeeAttendanceScreen(employee: state.extra as Employee),
-      ),
       // Compliance (UCPMP): an MR's own logged entries + form, plus the
       // team per-doctor dashboard (not admin-gated, same reasoning as
       // /team/*).

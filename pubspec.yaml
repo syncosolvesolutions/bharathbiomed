@@ -82,6 +82,8 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.2
   mocktail: ^1.0.4
+  geolocator_platform_interface: ^4.2.0  # Faking GeolocatorPlatform.instance in location_service_test.dart
+  plugin_platform_interface: ^2.1.8  # MockPlatformInterfaceMixin, same test
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -101,23 +101,24 @@ class TenantConfig {
   /// happened visible and auditable.
   final double ucpmpAnnualLimitPerDoctor;
 
-  /// Shown as the tax line label on invoices (e.g. "GST", "VAT", "Sales
-  /// Tax") — see `functions/src/generatedTenantConfig.ts` for the
-  /// Cloud-Functions-side twin of this and [taxRatePercent] (Cloud
-  /// Functions can't import this Dart file, so both are generated
-  /// separately from the same `tenant.json` by `scripts/apply_tenant.dart`).
+  /// Tax line label (e.g. "GST", "VAT", "Sales Tax") — not currently
+  /// consumed anywhere in-app (invoicing/tax/payment are handled entirely
+  /// offline outside the app), kept in the tenant config as pre-existing
+  /// data a future in-app invoicing feature could read. See
+  /// `functions/src/generatedTenantConfig.ts` for the Cloud-Functions-side
+  /// twin of this and [taxRatePercent] (Cloud Functions can't import this
+  /// Dart file, so both are generated separately from the same
+  /// `tenant.json` by `scripts/apply_tenant.dart`).
   final String taxLabel;
 
-  /// A single tenant-wide tax rate applied to every order's subtotal when
-  /// `generateInvoice` runs. Real GST has multiple rate slabs per product
-  /// HSN code — this app has no per-product tax-rate field, so this is a
-  /// deliberate simplification, not a full tax engine. A tenant that
-  /// genuinely needs per-product rates would need that field added to
-  /// `Product` first.
+  /// A single tenant-wide tax rate — same "not currently consumed" note as
+  /// [taxLabel] above. Real GST has multiple rate slabs per product HSN
+  /// code — this app has no per-product tax-rate field, so this was always
+  /// a deliberate simplification, not a full tax engine.
   final double taxRatePercent;
 
-  /// Days after `Invoice.issuedAt` before an unpaid/partially-paid invoice
-  /// is considered overdue — see `Invoice.isOverdue`.
+  /// Days before an unpaid order would be considered overdue — same "not
+  /// currently consumed" note as [taxLabel] above.
   final int paymentTermsDays;
 }
 

@@ -44,13 +44,6 @@ final canManageAgenciesProvider = Provider<bool>((ref) {
   return ref.watch(isOfficeAdminProvider) || ref.watch(hasPermissionProvider(Permission.manageAgencies));
 });
 
-/// Invoice read access: global visibility, or anyone holding
-/// `manage_invoices` (who else could ever generate one). Mirrors
-/// firestore.rules' `Invoices` read rule.
-final canViewInvoicesProvider = Provider<bool>((ref) {
-  return ref.watch(hasGlobalVisibilityProvider) || ref.watch(hasPermissionProvider(Permission.manageInvoices));
-});
-
 /// Monthly-target creation access: global visibility, an Office Admin, or
 /// anyone holding `manage_targets` (an RM/ZBM-tier designation the admin
 /// assigned it to). Further restricted per-target to the target's employee

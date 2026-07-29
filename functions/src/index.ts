@@ -7,8 +7,7 @@ import {onDocumentWritten} from "firebase-functions/v2/firestore";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 
-import {requireAdmin, requireOfficeAdmin, requirePermission, usernameToEmail} from "./adminAccess";
-import {PAYMENT_TERMS_DAYS, TAX_LABEL, TAX_RATE_PERCENT} from "./generatedTenantConfig";
+import {requireAdmin, requireAdminOrPermission, requireOfficeAdminOrPermission, requirePermission, usernameToEmail} from "./adminAccess";
 
 export {onUserOrgChanged, onDesignationOrgChanged} from "./hierarchy";
 
@@ -745,7 +744,9 @@ interface ReviewDoctorChangeRequestRequest {
 }
 
 /**
- * Admin-only: approves or rejects an MR's proposed doctor create/edit (see
+ * The hardcoded admin allowlist, or any employee holding `approve_requests`
+ * (e.g. an Area Business Manager and above — see [requireAdminOrPermission]):
+ * approves or rejects an MR's proposed doctor create/edit (see
  * DoctorChangeRequests in firestore.rules). Approving a `create` adds a new
  * Doctors doc from `proposedData`; approving an `update` merges it into the
  * existing doctor. Either way, the requesting MR is pushed a notification
@@ -756,7 +757,7 @@ export const reviewDoctorChangeRequest = onCall(async (request) => {
     requestId: (request.data as Partial<ReviewDoctorChangeRequestRequest>)?.requestId,
     approve: (request.data as Partial<ReviewDoctorChangeRequestRequest>)?.approve,
   });
-  const adminUid = requireAdmin(request);
+  const adminUid = await requireAdminOrPermission(request, "approve_requests");
 
   const data = request.data as Partial<ReviewDoctorChangeRequestRequest>;
   const requestId = data.requestId ?? "";
@@ -831,20 +832,22 @@ interface ReviewEntityChangeRequestRequest {
 }
 
 /**
- * Office-Admin-only (see [requireOfficeAdmin] — deliberately not
- * [requireAdmin], since agencies/pharmacies aren't limited to the hardcoded
- * admin allowlist): approves or rejects an MR's proposed new agency/
- * pharmacy (see EntityChangeRequests in firestore.rules). Approving writes a
- * new `Agencies`/`Pharmacies` doc from `proposedData`, keyed on
- * `entityType`. Mirrors [reviewDoctorChangeRequest] — the requesting MR is
- * pushed a notification once this resolves.
+ * Office Admin (unconditionally), or any employee holding `approve_requests`
+ * (e.g. an Area Business Manager and above — see
+ * [requireOfficeAdminOrPermission], deliberately not [requireAdmin], since
+ * agencies/pharmacies aren't limited to the hardcoded admin allowlist):
+ * approves or rejects an MR's proposed new agency/pharmacy (see
+ * EntityChangeRequests in firestore.rules). Approving writes a new
+ * `Agencies`/`Pharmacies` doc from `proposedData`, keyed on `entityType`.
+ * Mirrors [reviewDoctorChangeRequest] — the requesting MR is pushed a
+ * notification once this resolves.
  */
 export const reviewEntityChangeRequest = onCall(async (request) => {
   logger.info("reviewEntityChangeRequest: called", {
     requestId: (request.data as Partial<ReviewEntityChangeRequestRequest>)?.requestId,
     approve: (request.data as Partial<ReviewEntityChangeRequestRequest>)?.approve,
   });
-  const reviewerUid = await requireOfficeAdmin(request);
+  const reviewerUid = await requireOfficeAdminOrPermission(request, "approve_requests");
 
   const data = request.data as Partial<ReviewEntityChangeRequestRequest>;
   const requestId = data.requestId ?? "";
@@ -1074,151 +1077,9 @@ export const dispatchOrder = onCall(async (request) => {
   return {success: true};
 });
 
-interface GenerateInvoiceRequest {
-  orderId: string;
-}
-
-/**
- * `manage_invoices`-gated: verifies the order is `dispatched`, assigns the
- * next sequential invoice number via a race-safe counter doc
- * (`Counters/invoiceNumber`), writes the `Invoices` doc, and marks the order
- * `invoiced` — all in one transaction so a retried/duplicate call can never
- * generate two invoices for the same order or skip/reuse a number.
- *
- * Tax (`TAX_LABEL`/`TAX_RATE_PERCENT`) and the payment due date
- * (`PAYMENT_TERMS_DAYS`), both from `generatedTenantConfig.ts`, are baked
- * into the invoice at generation time — see `Invoice`'s doc comment on the
- * Flutter side for why a later tenant-config change must never reinterpret
- * an already-issued invoice.
- */
-export const generateInvoice = onCall(async (request) => {
-  logger.info("generateInvoice: called", {orderId: (request.data as Partial<GenerateInvoiceRequest>)?.orderId});
-  await requirePermission(request, "manage_invoices");
-
-  const orderId = (request.data as Partial<GenerateInvoiceRequest>)?.orderId ?? "";
-  if (!orderId) {
-    throw new HttpsError("invalid-argument", "orderId is required.");
-  }
-
-  const firestore = getFirestore();
-  const orderRef = firestore.collection("Orders").doc(orderId);
-  const counterRef = firestore.collection("Counters").doc("invoiceNumber");
-  const invoiceRef = firestore.collection("Invoices").doc();
-
-  await firestore.runTransaction(async (transaction) => {
-    const [orderDoc, counterDoc] = await Promise.all([transaction.get(orderRef), transaction.get(counterRef)]);
-    if (!orderDoc.exists) {
-      throw new HttpsError("not-found", "That order no longer exists.");
-    }
-    const order = orderDoc.data()!;
-    if (order.status !== "dispatched") {
-      throw new HttpsError("failed-precondition", "Only a dispatched order can be invoiced.");
-    }
-
-    const nextNumber = ((counterDoc.data()?.value as number | undefined) ?? 0) + 1;
-    const invoiceNumber = `INV-${String(nextNumber).padStart(6, "0")}`;
-
-    const totalValue = (order.totalValue as number | undefined) ?? 0;
-    const taxAmount = totalValue * (TAX_RATE_PERCENT / 100);
-    const grandTotal = totalValue + taxAmount;
-    const dueDate = Timestamp.fromMillis(Date.now() + PAYMENT_TERMS_DAYS * 24 * 60 * 60 * 1000);
-
-    transaction.set(counterRef, {value: nextNumber});
-    transaction.set(invoiceRef, {
-      orderId,
-      invoiceNumber,
-      agencyId: order.agencyId,
-      agencyName: order.agencyName,
-      items: order.items,
-      totalValue,
-      taxLabel: TAX_LABEL,
-      taxRate: TAX_RATE_PERCENT,
-      taxAmount,
-      grandTotal,
-      paymentStatus: "unpaid",
-      amountPaid: 0,
-      dueDate,
-      issuedAt: FieldValue.serverTimestamp(),
-    });
-    transaction.update(orderRef, {status: "invoiced", invoiceId: invoiceRef.id});
-  });
-
-  logger.info("generateInvoice: succeeded", {orderId});
-  return {success: true};
-});
-
-interface RecordPaymentRequest {
-  invoiceId: string;
-  amount: number;
-  notes?: string;
-}
-
-/**
- * `manage_invoices`-gated: records one payment against an invoice
- * (`Payments` doc) and, in the same transaction, adds it onto
- * `Invoice.amountPaid` and recomputes `Invoice.paymentStatus` — `paid` once
- * `amountPaid >= grandTotal`, `partial` if some but not all has been paid,
- * otherwise stays `unpaid`. Rejects an amount that would overpay the
- * invoice (`amountPaid` exceeding `grandTotal`) rather than silently
- * accepting a refund-shaped negative balance; a genuine refund/credit is a
- * business decision to make in `notes` and a separate process, not
- * something this function infers.
- */
-export const recordPayment = onCall(async (request) => {
-  logger.info("recordPayment: called", {invoiceId: (request.data as Partial<RecordPaymentRequest>)?.invoiceId});
-  const uid = await requirePermission(request, "manage_invoices");
-
-  const {invoiceId, amount, notes} = (request.data ?? {}) as Partial<RecordPaymentRequest>;
-  if (!invoiceId) {
-    throw new HttpsError("invalid-argument", "invoiceId is required.");
-  }
-  if (typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
-    throw new HttpsError("invalid-argument", "amount must be a positive number.");
-  }
-
-  const firestore = getFirestore();
-  const invoiceRef = firestore.collection("Invoices").doc(invoiceId);
-  const paymentRef = firestore.collection("Payments").doc();
-
-  await firestore.runTransaction(async (transaction) => {
-    const invoiceDoc = await transaction.get(invoiceRef);
-    if (!invoiceDoc.exists) {
-      throw new HttpsError("not-found", "That invoice no longer exists.");
-    }
-    const invoice = invoiceDoc.data()!;
-    const grandTotal = (invoice.grandTotal as number | undefined) ?? 0;
-    const currentPaid = (invoice.amountPaid as number | undefined) ?? 0;
-    const newAmountPaid = currentPaid + amount;
-
-    if (newAmountPaid > grandTotal + 0.01) {
-      // A small epsilon absorbs floating-point rounding on the tax
-      // computation above without letting a genuinely large overpayment
-      // through.
-      throw new HttpsError(
-        "failed-precondition",
-        `This payment would overpay the invoice by ${(newAmountPaid - grandTotal).toFixed(2)}.`
-      );
-    }
-
-    const newStatus = newAmountPaid >= grandTotal - 0.01 ? "paid" : newAmountPaid > 0 ? "partial" : "unpaid";
-
-    transaction.set(paymentRef, {
-      invoiceId,
-      amount,
-      recordedByUid: uid,
-      notes: notes ?? "",
-      paidAt: FieldValue.serverTimestamp(),
-    });
-    transaction.update(invoiceRef, {amountPaid: newAmountPaid, paymentStatus: newStatus});
-  });
-
-  logger.info("recordPayment: succeeded", {invoiceId});
-  return {success: true};
-});
-
 // ---------------------------------------------------------------------
-// Targeted approval notifications: Orders, ExpenseClaims, LeaveRequests,
-// and DoctorVisitPlans are all approved/rejected via direct, rules-gated
+// Targeted approval notifications: Orders, ExpenseClaims, and
+// DoctorVisitPlans are all approved/rejected via direct, rules-gated
 // client writes (see firestore.rules), not Cloud Functions — these
 // triggers react to those writes rather than replacing them, so the
 // approval action itself is unchanged; this is purely "notify the right
@@ -1230,7 +1091,7 @@ export const recordPayment = onCall(async (request) => {
  * level — see `reportingChainUids`, maintained by `functions/src/hierarchy.ts`)
  * who currently holds [permission], and pushes each of them
  * [notification]/[data] via [sendPushToUser]. Used when a new order/
- * expense-claim/leave-request/visit-plan needs someone with the matching
+ * expense-claim/visit-plan needs someone with the matching
  * `approve_*` permission to know about it — deliberately narrower than
  * `ADMIN_NOTIFICATIONS_TOPIC`'s broadcast-to-every-admin approach, since
  * these are downline-scoped concerns, not company-wide ones.
@@ -1289,11 +1150,13 @@ export const onOrderWritten = onDocumentWritten("Orders/{orderId}", async (event
   const beforeStatus = before.data()?.status as string | undefined;
   if (beforeStatus === status || !createdByUid) return;
 
+  // No entry for `delivered`: that transition is always made by createdByUid
+  // themselves (see firestore.rules' `Orders` rule), so notifying them about
+  // their own action would be pointless self-notification.
   const statusMessages: Record<string, string> = {
     approved: `Your order for ${agencyName} was approved.`,
     rejected: `Your order for ${agencyName} was rejected.`,
     dispatched: `Your order for ${agencyName} was dispatched.`,
-    invoiced: `Your order for ${agencyName} was invoiced.`,
   };
   const message = status ? statusMessages[status] : undefined;
   if (!message) return;
@@ -1337,44 +1200,6 @@ export const onExpenseClaimWritten = onDocumentWritten("ExpenseClaims/{claimId}"
     mrUid,
     {title: "Expense claim update", body: message},
     {type: "expense_claim_status_changed", claimId}
-  );
-});
-
-export const onLeaveRequestWritten = onDocumentWritten("LeaveRequests/{requestId}", async (event) => {
-  const before = event.data?.before;
-  const after = event.data?.after?.data();
-  if (!after) return;
-
-  const requestId = event.params.requestId;
-  const mrUid = after.mrUid as string | undefined;
-  const mrName = (after.mrName as string | undefined) || "An MR";
-  const status = after.status as string | undefined;
-
-  if (!before?.exists) {
-    if (!mrUid || status !== "pending") return;
-    logger.info("onLeaveRequestWritten: new request, notifying approvers", {requestId, mrUid});
-    await notifyReportingChainWithPermission(
-      mrUid,
-      "approve_leave",
-      {title: "New leave request to review", body: `${mrName} requested leave.`},
-      {type: "leave_request_pending_approval", requestId}
-    );
-    return;
-  }
-
-  const beforeStatus = before.data()?.status as string | undefined;
-  if (beforeStatus === status || !mrUid) return;
-  const message =
-    status === "approved" ? "Your leave request was approved." :
-    status === "rejected" ? "Your leave request was rejected." :
-    undefined;
-  if (!message) return;
-
-  logger.info("onLeaveRequestWritten: status changed, notifying MR", {requestId, mrUid, status});
-  await sendPushToUser(
-    mrUid,
-    {title: "Leave request update", body: message},
-    {type: "leave_request_status_changed", requestId}
   );
 });
 

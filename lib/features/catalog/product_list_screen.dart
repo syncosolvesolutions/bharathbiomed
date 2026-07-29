@@ -129,6 +129,16 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               tooltip: 'Admin',
               onPressed: () => context.push('/admin'),
             ),
+          // An Office Admin (not the hardcoded admin) only gets Inventory —
+          // see app_router.dart's redirect for the '/admin/inventory'
+          // sub-routes it actually normalizes this push to (bare '/admin' on
+          // web, straight to inventory on mobile).
+          if (!isAdmin && isSignedIn && ref.watch(isOfficeAdminProvider))
+            IconButton(
+              icon: const Icon(Icons.inventory_2_outlined),
+              tooltip: 'Inventory',
+              onPressed: () => context.push('/admin/inventory'),
+            ),
           if (isSignedIn && !isAdmin)
             IconButton(
               icon: const Icon(Icons.today_outlined),
@@ -177,12 +187,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               tooltip: 'My Orders',
               onPressed: () => context.push('/orders'),
             ),
-          if (isSignedIn && ref.watch(canViewInvoicesProvider))
-            IconButton(
-              icon: const Icon(Icons.receipt_long_outlined),
-              tooltip: 'Invoices',
-              onPressed: () => context.push('/invoices'),
-            ),
           if (isSignedIn && !isAdmin)
             IconButton(
               icon: const Icon(Icons.track_changes_outlined),
@@ -200,18 +204,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               icon: const Icon(Icons.request_page_outlined),
               tooltip: 'My Expense Claims',
               onPressed: () => context.push('/expenses'),
-            ),
-          if (isSignedIn && !isAdmin)
-            IconButton(
-              icon: const Icon(Icons.event_busy_outlined),
-              tooltip: 'My Leave Requests',
-              onPressed: () => context.push('/leave'),
-            ),
-          if (isSignedIn && !isAdmin)
-            IconButton(
-              icon: const Icon(Icons.event_available_outlined),
-              tooltip: 'My Attendance',
-              onPressed: () => context.push('/attendance'),
             ),
           if (isSignedIn && !isAdmin)
             IconButton(

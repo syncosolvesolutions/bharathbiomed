@@ -19,7 +19,7 @@ class TargetProgress {
   }
 }
 
-const _achievedStatuses = {OrderStatus.approved, OrderStatus.dispatched, OrderStatus.invoiced};
+const _achievedStatuses = {OrderStatus.approved, OrderStatus.dispatched, OrderStatus.delivered};
 
 /// Sums [orders] whose `createdAt` falls in [period] and whose status counts
 /// as an actual confirmed sale — shared by [MyTargetController] and

@@ -53,36 +53,7 @@ export function requireAdmin(request: CallableRequest): string {
 }
 
 /**
- * "Office Admin": [requireAdmin]'s hardcoded allowlist, or a real employee
- * whose denormalized `category` is `office_administration` (see
- * `Designation`/`DesignationCategory` on the Flutter side, kept in sync onto
- * `Users/{uid}.category` by the same hierarchy trigger that maintains
- * `permissions`). Gates agency/pharmacy create+deactivate and
- * `reviewEntityChangeRequest` — deliberately broader than [requireAdmin],
- * since the business wants any Office Administration designation to have
- * this, not just the two allowlisted emails. Mirrors firestore.rules'
- * `isOfficeAdmin()`.
- */
-export async function requireOfficeAdmin(request: CallableRequest): Promise<string> {
-  logger.info("requireOfficeAdmin: called");
-  const email = request.auth?.token?.email;
-  if (request.auth && email && ADMIN_EMAILS.has(email)) {
-    return request.auth.uid;
-  }
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "You must be signed in.");
-  }
-  const uid = request.auth.uid;
-  const userDoc = await getFirestore().collection("Users").doc(uid).get();
-  if (userDoc.data()?.category !== "office_administration") {
-    logger.warn("requireOfficeAdmin: rejected", {uid, category: userDoc.data()?.category ?? null});
-    throw new HttpsError("permission-denied", "Only an Office Admin can perform this action.");
-  }
-  return uid;
-}
-
-/**
- * Non-admin (designation/permission-based) role gate for Order/Invoice-style
+ * Non-admin (designation/permission-based) role gate for Order-style
  * callables — separate from and unrelated to [requireAdmin]'s hardcoded
  * allowlist (see `Users/{uid}.permissions`, denormalized from the caller's
  * assigned designation by `functions/src/hierarchy.ts`). Checks live
@@ -101,6 +72,60 @@ export async function requirePermission(request: CallableRequest, permission: st
   if (!userDoc.exists || userDoc.data()?.role !== "mr" || !permissions.includes(permission)) {
     logger.warn("requirePermission: rejected", {uid, permission, exists: userDoc.exists});
     throw new HttpsError("permission-denied", `This action requires the "${permission}" permission.`);
+  }
+  return uid;
+}
+
+/**
+ * Doctor-request review access: [requireAdmin]'s hardcoded allowlist, or any
+ * real employee holding [permission] (in practice `approve_requests`) —
+ * deliberately category-agnostic, so a senior field designation (e.g. Area
+ * Business Manager and above) qualifies exactly the same way an Office
+ * Administration designation would. See [requireOfficeAdminOrPermission] for
+ * the equivalent on `EntityChangeRequests`, which additionally accepts
+ * Office Admin category unconditionally.
+ */
+export async function requireAdminOrPermission(request: CallableRequest, permission: string): Promise<string> {
+  logger.info("requireAdminOrPermission: called", {permission});
+  const email = request.auth?.token?.email;
+  if (request.auth && email && ADMIN_EMAILS.has(email)) {
+    return request.auth.uid;
+  }
+  return requirePermission(request, permission);
+}
+
+/**
+ * Agency/Pharmacy-request review access: unconditional for the hardcoded
+ * admin allowlist or a real employee whose denormalized `category` is
+ * `office_administration` (mirrors firestore.rules' `isOfficeAdmin()` —
+ * gates agency/pharmacy create+deactivate too, but that path is a direct
+ * rules-gated client write, not a callable, so there's no Cloud-Functions
+ * helper for just that half anymore), plus any real employee holding
+ * [permission] (in practice `approve_requests`) regardless of category — a
+ * second, independent path onto the same action, added so a senior field
+ * designation (e.g. Area Business Manager and above) can review these too.
+ */
+export async function requireOfficeAdminOrPermission(request: CallableRequest, permission: string): Promise<string> {
+  logger.info("requireOfficeAdminOrPermission: called", {permission});
+  const email = request.auth?.token?.email;
+  if (request.auth && email && ADMIN_EMAILS.has(email)) {
+    return request.auth.uid;
+  }
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "You must be signed in.");
+  }
+  const uid = request.auth.uid;
+  const userDoc = await getFirestore().collection("Users").doc(uid).get();
+  if (userDoc.data()?.category === "office_administration") {
+    return uid;
+  }
+  const permissions = (userDoc.data()?.permissions as string[] | undefined) ?? [];
+  if (!userDoc.exists || userDoc.data()?.role !== "mr" || !permissions.includes(permission)) {
+    logger.warn("requireOfficeAdminOrPermission: rejected", {uid, permission});
+    throw new HttpsError(
+      "permission-denied",
+      `This action requires Office Admin or the "${permission}" permission.`
+    );
   }
   return uid;
 }

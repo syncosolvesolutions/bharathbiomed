@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/error/app_logger.dart';
 import '../../core/error/user_facing_error.dart';
 import '../../domain/models/order.dart';
 import 'order_controller.dart';
@@ -18,7 +19,7 @@ class MyOrdersScreen extends ConsumerWidget {
         OrderStatus.approved => Colors.blue,
         OrderStatus.rejected => Colors.red,
         OrderStatus.dispatched => Colors.teal,
-        OrderStatus.invoiced => Colors.green,
+        OrderStatus.delivered => Colors.green,
       };
 
   String _statusLabel(OrderStatus status) => switch (status) {
@@ -26,8 +27,21 @@ class MyOrdersScreen extends ConsumerWidget {
         OrderStatus.approved => 'Approved',
         OrderStatus.rejected => 'Rejected',
         OrderStatus.dispatched => 'Dispatched',
-        OrderStatus.invoiced => 'Invoiced',
+        OrderStatus.delivered => 'Delivered',
       };
+
+  Future<void> _markDelivered(BuildContext context, WidgetRef ref, Order order) async {
+    try {
+      await ref.read(myOrdersControllerProvider.notifier).markDelivered(order.id);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked as delivered.')));
+    } catch (error, stackTrace) {
+      AppLogger.error('MyOrders', 'markDelivered failed', error: error, stackTrace: stackTrace);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Failed: ${UserFacingError.describe(error)}')));
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,10 +75,16 @@ class MyOrdersScreen extends ConsumerWidget {
                         '• ${order.totalValue.toStringAsFixed(2)}'
                         '${order.rejectedReason?.isNotEmpty ?? false ? '\n${order.rejectedReason}' : ''}'),
                     isThreeLine: order.rejectedReason?.isNotEmpty ?? false,
-                    trailing: Chip(
-                      label: Text(_statusLabel(order.status), style: const TextStyle(color: Colors.white, fontSize: 12)),
-                      backgroundColor: _statusColor(order.status),
-                    ),
+                    trailing: order.status == OrderStatus.dispatched
+                        ? ElevatedButton(
+                            onPressed: () => _markDelivered(context, ref, order),
+                            child: const Text('Mark Delivered'),
+                          )
+                        : Chip(
+                            label:
+                                Text(_statusLabel(order.status), style: const TextStyle(color: Colors.white, fontSize: 12)),
+                            backgroundColor: _statusColor(order.status),
+                          ),
                   ),
                 );
               },

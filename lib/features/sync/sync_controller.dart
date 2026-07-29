@@ -81,7 +81,6 @@ class SyncController extends Notifier<SyncState> {
         ref.read(orderRepositoryProvider).countPendingUpload(),
         ref.read(rcpaRepositoryProvider).countPendingUpload(),
         ref.read(expenseClaimRepositoryProvider).countPendingUpload(),
-        ref.read(leaveRequestRepositoryProvider).countPendingUpload(),
         ref.read(complianceLogRepositoryProvider).countPendingUpload(),
         if (mrUid != null)
           ref.read(doctorVisitPlanRepositoryProvider).hasPendingUpload(mrUid).then((has) => has ? 1 : 0),

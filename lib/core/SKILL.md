@@ -25,7 +25,7 @@ import from `features/`.
   `tenants/<tenantId>/tenant.json` / `scripts/apply_tenant.dart`.
 - `utils/report_export_service.dart` + `widgets/export_menu_button.dart` —
   the shared "Export" action used by every dashboard that offers CSV/PDF
-  export (Usage Dashboard, RCPA Dashboard, Team Targets, Invoices). Both
+  export (Usage Dashboard, RCPA Dashboard, Team Targets). Both
   hand off to the OS share sheet (`share_plus`/`printing`) rather than
   writing to app storage — this app doesn't otherwise touch the
   filesystem for user-facing files. `ExportMenuButton` owns its own

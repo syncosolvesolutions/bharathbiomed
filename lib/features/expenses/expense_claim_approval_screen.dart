@@ -11,7 +11,7 @@ import 'expense_claim_approval_controller.dart';
 /// Team expense-claim workflow: pending claims needing approve/reject,
 /// scoped to the signed-in user's reporting-chain downline (or everyone,
 /// for a view_global_data holder). Mirrors [OrderApprovalScreen], minus the
-/// dispatch/invoice steps a claim doesn't have.
+/// dispatch step a claim doesn't have.
 class ExpenseClaimApprovalScreen extends ConsumerWidget {
   const ExpenseClaimApprovalScreen({super.key});
 

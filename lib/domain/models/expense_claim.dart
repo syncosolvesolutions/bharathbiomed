@@ -40,7 +40,7 @@ extension ExpenseCategoryLabel on ExpenseCategory {
 
 /// `pending` (submitted here) -> `approved`/`rejected` by whoever holds
 /// `approve_expenses` for this MR's reporting chain — a deliberately
-/// simpler lifecycle than [Order] (no dispatch/invoice equivalent; a claim
+/// simpler lifecycle than [Order] (no dispatch/delivery equivalent; a claim
 /// is either approved or it isn't, there's nothing further to fulfill).
 enum ExpenseClaimStatus { pending, approved, rejected }
 

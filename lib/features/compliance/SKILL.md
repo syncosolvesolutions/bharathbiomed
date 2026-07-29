@@ -17,8 +17,8 @@ different.
   the signed-in MR's own logged entries (route `/compliance`), read
   straight from the local queue (synced or not) — mirrors
   `MyRcpaEntriesController`, not the Firestore-backed "mine" controllers in
-  `features/expenses`/`features/leave` (there's no server-side status to
-  wait for here; it's a log, not a request).
+  `features/expenses` (there's no server-side status to wait for here; it's
+  a log, not a request).
 - `compliance_dashboard_controller.dart` / `compliance_dashboard_screen.dart`
   — team view (route `/team/compliance`), scoped via
   `resolveVisibleEmployees`. **Aggregates by doctor, not by MR** — see
@@ -46,5 +46,5 @@ number.
   (formatting, multi-currency), that's new scope.
 - No export/report generation (e.g. a PDF audit trail for a compliance
   officer) — see the roadmap's Phase 5 (reporting/exports), not built yet.
-- No interaction with `features/leave`/`features/expenses` — a
-  sponsorship logged here and a matching expense claim aren't linked.
+- No interaction with `features/expenses` — a sponsorship logged here and a
+  matching expense claim aren't linked.

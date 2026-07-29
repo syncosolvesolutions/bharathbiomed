@@ -28,7 +28,7 @@ service cloud.firestore {
 
     // Fully separate from isAdmin() above — this is the new designation/
     // permission hierarchy (see functions/src/hierarchy.ts), which controls
-    // Order/Invoice-style visibility, not access to the admin panel. Reads
+    // Order-style visibility, not access to the admin panel. Reads
     // the caller's own denormalized `permissions` (copied from their
     // assigned designation onto their Users doc by the hierarchy trigger).
     function hasPermission(name) {
@@ -180,12 +180,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // An MR's proposed doctor create/edit, awaiting admin approval. The MR
-    // may create their own request and read it back; only the admin (via
-    // the reviewDoctorChangeRequest Cloud Function) may change its status
-    // or apply it, so client update/delete are both denied.
+    // An MR's proposed doctor create/edit, awaiting review. The MR may
+    // create their own request and read it back; review (via the
+    // reviewDoctorChangeRequest Cloud Function) is the hardcoded admin
+    // allowlist or any approve_requests holder (e.g. an Area Business
+    // Manager and above — deliberately category-agnostic, unlike
+    // isOfficeAdmin() below) — client update/delete are both denied either
+    // way, since only that Cloud Function may change status or apply it.
     match /DoctorChangeRequests/{requestId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow read: if isAdmin() || hasPermission('approve_requests') ||
+        (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.requestedByUid == request.auth.uid
         && request.resource.data.status == 'pending';
@@ -294,12 +298,16 @@ service cloud.firestore {
       allow update: if isOfficeAdmin() || hasPermission('manage_agencies');
     }
 
-    // An MR's proposed new agency/pharmacy, awaiting Office Admin approval —
-    // same shape as DoctorChangeRequests above, just reviewed by
-    // isOfficeAdmin() instead of isAdmin() since agencies/pharmacies aren't
-    // gated to the hardcoded admin allowlist the way Doctors is.
+    // An MR's proposed new agency/pharmacy, awaiting review — same shape as
+    // DoctorChangeRequests above. Reviewable by an Office Admin
+    // unconditionally (isOfficeAdmin(), since agencies/pharmacies aren't
+    // gated to the hardcoded admin allowlist the way Doctors is), or by any
+    // approve_requests holder regardless of category — a second,
+    // independent path added so a senior field designation (e.g. an Area
+    // Business Manager and above) can review these too.
     match /EntityChangeRequests/{requestId} {
-      allow read: if isOfficeAdmin() || (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
+      allow read: if isOfficeAdmin() || hasPermission('approve_requests') ||
+        (isSignedIn() && resource.data.requestedByUid == request.auth.uid);
       allow create: if isSignedIn()
         && request.resource.data.requestedByUid == request.auth.uid
         && request.resource.data.status == 'pending';
@@ -312,10 +320,13 @@ service cloud.firestore {
     // (global visibility or being somewhere in the creator's reporting
     // chain), restricted to only touch the review fields, and only while
     // still pending (so it can't be replayed or used to un-approve/
-    // un-reject after the fact). Dispatch (stock decrement) and invoice
-    // generation always go through their Cloud Functions — see
-    // dispatchOrder/generateInvoice — which use the Admin SDK and bypass
-    // these rules, so there's no client update path to either status here.
+    // un-reject after the fact). Dispatch (stock decrement) always goes
+    // through its Cloud Function — see dispatchOrder — which uses the
+    // Admin SDK and bypasses these rules, so there's no client update path
+    // to that status here. `delivered` is the exception: a direct,
+    // ownership-scoped write by the order's own creator only, once
+    // dispatched — invoicing/payment are handled entirely offline outside
+    // the app, so there's no further Cloud-Function-gated status after this.
     match /Orders/{orderId} {
       allow read: if isAdmin()
         || hasGlobalVisibility()
@@ -331,24 +342,12 @@ service cloud.firestore {
         && request.resource.data.status in ['approved', 'rejected']
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
+      allow update: if isSignedIn()
+        && resource.data.createdByUid == request.auth.uid
+        && resource.data.status == 'dispatched'
+        && request.resource.data.status == 'delivered'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deliveredAt']);
       allow delete: if false;
-    }
-
-    // Generated only by generateInvoice (Cloud Function, Admin SDK) —
-    // nobody ever writes here directly. Read access mirrors who could ever
-    // plausibly need to see one: the admin, a view_global_data holder, or
-    // whoever holds manage_invoices.
-    match /Invoices/{invoiceId} {
-      allow read: if isAdmin() || hasGlobalVisibility() || hasPermission('manage_invoices');
-      allow write: if false;
-    }
-
-    // Generated only by recordPayment (Cloud Function, Admin SDK), which
-    // also updates the parent Invoice's amountPaid/paymentStatus in the
-    // same transaction — same read-access shape as Invoices above.
-    match /Payments/{paymentId} {
-      allow read: if isAdmin() || hasGlobalVisibility() || hasPermission('manage_invoices');
-      allow write: if false;
     }
 
     // A monthly order-value target an RM-or-above sets for one of their
@@ -382,26 +381,6 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
       allow update: if isSignedIn()
         && hasPermission('approve_expenses')
-        && (hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid))
-        && resource.data.status == 'pending'
-        && request.resource.data.status in ['approved', 'rejected']
-        && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['status', 'approvedByUid', 'approvedAt', 'rejectedReason']);
-      allow delete: if false;
-    }
-
-    // An MR's leave request — identical shape to ExpenseClaims above, just
-    // gated by approve_leave instead of approve_expenses.
-    match /LeaveRequests/{requestId} {
-      allow read: if isAdmin()
-        || hasGlobalVisibility()
-        || resource.data.mrUid == request.auth.uid
-        || isInDownlineOf(resource.data.mrUid);
-      allow create: if isSignedIn()
-        && request.resource.data.mrUid == request.auth.uid
-        && request.resource.data.status == 'pending';
-      allow update: if isSignedIn()
-        && hasPermission('approve_leave')
         && (hasGlobalVisibility() || isInDownlineOf(resource.data.mrUid))
         && resource.data.status == 'pending'
         && request.resource.data.status in ['approved', 'rejected']

@@ -7,11 +7,12 @@ import '../auth/auth_controller.dart';
 import '../team/team_access.dart';
 
 /// Orders still needing some team-side action — pending (needs approve/
-/// reject), approved (needs dispatch), or dispatched (needs an invoice) —
-/// everyone's for a [hasGlobalVisibilityProvider] holder, just the signed-in
-/// user's own reporting-chain downline otherwise (see
-/// [resolveVisibleEmployees]). Rejected/invoiced orders are terminal and
-/// excluded — nothing left to do with them here. Mirrors
+/// reject) or approved (needs dispatch) — everyone's for a
+/// [hasGlobalVisibilityProvider] holder, just the signed-in user's own
+/// reporting-chain downline otherwise (see [resolveVisibleEmployees]).
+/// Rejected/dispatched/delivered orders are terminal from the team's side
+/// (dispatched just awaits the MR's own "Mark Delivered", not a team action)
+/// and excluded — nothing left to do with them here. Mirrors
 /// [UsageDashboardController]'s scoping; fetches unfiltered-by-status and
 /// filters client-side since Firestore only allows one `whereIn`/equality
 /// filter per query and the uid-scoping already uses it.
@@ -19,7 +20,7 @@ final orderApprovalControllerProvider =
     AsyncNotifierProvider<OrderApprovalController, List<Order>>(OrderApprovalController.new);
 
 class OrderApprovalController extends AsyncNotifier<List<Order>> {
-  static const _actionable = {OrderStatus.pending, OrderStatus.approved, OrderStatus.dispatched};
+  static const _actionable = {OrderStatus.pending, OrderStatus.approved};
 
   @override
   Future<List<Order>> build() async {
@@ -57,13 +58,6 @@ class OrderApprovalController extends AsyncNotifier<List<Order>> {
   Future<void> dispatch(String orderId) async {
     debugPrint('OrderApprovalController.dispatch: orderId=$orderId');
     await ref.read(orderRepositoryProvider).dispatch(orderId);
-    await refresh();
-  }
-
-  /// `manage_invoices`-gated Cloud Function.
-  Future<void> generateInvoice(String orderId) async {
-    debugPrint('OrderApprovalController.generateInvoice: orderId=$orderId');
-    await ref.read(invoiceRepositoryProvider).generate(orderId);
     await refresh();
   }
 }

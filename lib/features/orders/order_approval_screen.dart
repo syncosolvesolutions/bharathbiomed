@@ -9,12 +9,13 @@ import '../team/team_access.dart';
 import 'order_approval_controller.dart';
 
 /// Team order workflow: pending orders needing approve/reject, approved
-/// orders needing dispatch, dispatched orders needing an invoice — scoped to
-/// the signed-in user's reporting-chain downline (or everyone, for a
-/// view_global_data holder). Each action button only shows for whoever
-/// actually holds that permission (see [Permission]) — someone with
-/// `approve_orders` but not `dispatch_orders` sees Approve/Reject but no
-/// Dispatch button, for example.
+/// orders needing dispatch — scoped to the signed-in user's reporting-chain
+/// downline (or everyone, for a view_global_data holder). Each action button
+/// only shows for whoever actually holds that permission (see [Permission])
+/// — someone with `approve_orders` but not `dispatch_orders` sees Approve/
+/// Reject but no Dispatch button, for example. Once dispatched, an order
+/// waits on the MR's own "Mark Delivered" (see `MyOrdersScreen`), not a team
+/// action — invoicing/payment happen entirely offline.
 class OrderApprovalScreen extends ConsumerWidget {
   const OrderApprovalScreen({super.key});
 
@@ -63,7 +64,6 @@ class OrderApprovalScreen extends ConsumerWidget {
     final ordersAsync = ref.watch(orderApprovalControllerProvider);
     final canApprove = ref.watch(hasPermissionProvider(Permission.approveOrders));
     final canDispatch = ref.watch(hasPermissionProvider(Permission.dispatchOrders));
-    final canInvoice = ref.watch(hasPermissionProvider(Permission.manageInvoices));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Order Workflow')),
@@ -126,17 +126,6 @@ class OrderApprovalScreen extends ConsumerWidget {
                                   successMessage: 'Order dispatched — stock updated.',
                                 ),
                                 child: const Text('Dispatch'),
-                              ),
-                            if (order.status == OrderStatus.dispatched && canInvoice)
-                              ElevatedButton(
-                                onPressed: () => _run(
-                                  context,
-                                  ref,
-                                  () =>
-                                      ref.read(orderApprovalControllerProvider.notifier).generateInvoice(order.id),
-                                  successMessage: 'Invoice generated.',
-                                ),
-                                child: const Text('Generate Invoice'),
                               ),
                           ],
                         ),

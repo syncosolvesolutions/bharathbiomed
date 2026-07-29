@@ -4,8 +4,9 @@ import '../../domain/models/sales_target.dart';
 import '../remote/sales_target_remote_data_source.dart';
 
 /// Monthly targets — always a live Firestore read/write (connectivity-
-/// assumed, same reasoning as [InvoiceRepository]: setting a target is a
-/// manager action, not a field-with-no-signal action).
+/// assumed, same reasoning as [EntityChangeRequestRepository]'s review
+/// path: setting a target is a manager action, not a field-with-no-signal
+/// action).
 class SalesTargetRepository {
   SalesTargetRepository({SalesTargetRemoteDataSource? remote}) : _remote = remote ?? SalesTargetRemoteDataSource();
 

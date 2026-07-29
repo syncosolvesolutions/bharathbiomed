@@ -34,11 +34,11 @@ void main() {
       expect(achievementForPeriod(orders, '2026-07'), 0);
     });
 
-    test('includes approved, dispatched, and invoiced orders', () {
+    test('includes approved, dispatched, and delivered orders', () {
       final orders = [
         buildOrder(status: OrderStatus.approved, createdAt: DateTime(2026, 7, 1), unitPrice: 10),
         buildOrder(status: OrderStatus.dispatched, createdAt: DateTime(2026, 7, 2), unitPrice: 20),
-        buildOrder(status: OrderStatus.invoiced, createdAt: DateTime(2026, 7, 3), unitPrice: 30),
+        buildOrder(status: OrderStatus.delivered, createdAt: DateTime(2026, 7, 3), unitPrice: 30),
       ];
       expect(achievementForPeriod(orders, '2026-07'), 60);
     });

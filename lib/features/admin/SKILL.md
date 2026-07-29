@@ -36,17 +36,24 @@ subsystem specifically, since that's the newest and least obvious part.
   simply isn't attributed to any batch — `stockQuantity` is still the
   number that gated whether dispatch was allowed at all.
 
-### Known gap
+### Office Admin access to `/admin/inventory*` (closed 2026-07-29)
 
-`/admin/inventory*` routes are gated to the hardcoded admin allowlist only
-(`app_router.dart`'s `onAdminRoute` redirect), even though `firestore.rules`
-already lets an Office Admin designation adjust `stockQuantity` and manage
-batches (`isOfficeAdmin()`). There's currently no in-app path for an Office
-Admin (who isn't also the allowlisted admin) to reach these screens at all
-— they'd need direct Firestore access. Flag this if a tenant actually needs
-Office Admins to manage inventory day-to-day; fixing it means moving these
-routes out of the `/admin/*` prefix (or adding a parallel permission-gated
-entry point), not a Firestore rules change.
+`app_router.dart`'s `onAdminRoute` redirect used to gate every `/admin/*`
+route to the hardcoded admin allowlist only, even though `firestore.rules`
+already let an Office Admin designation adjust `stockQuantity` and manage
+batches (`isOfficeAdmin()`) — there was no in-app path to reach these
+screens without direct Firestore access. Fixed: the redirect now also lets
+an Office Admin (not the allowlisted admin) through, but only to the three
+Inventory routes (`/admin/inventory`, `/admin/inventory/batches`,
+`/admin/inventory/expiry-alerts`) — everything else under `/admin/*`
+(Employees/Designations/Departments/Products CRUD) stays hardcoded-admin-
+only, since those still require the admin allowlist server-side too
+(`requireAdmin`-gated Cloud Functions, or admin-only firestore.rules). On
+mobile an Office Admin reaches Inventory via a new toolbar icon on the
+catalog screen (`product_list_screen.dart`, shown instead of the full
+admin shield icon); on web the same redirect sends them to the `/admin`
+route itself, where `AdminWebShell` shows a reduced sidebar for this role
+— see `features/admin_web/SKILL.md`.
 
 ## Pagination — deliberately not added to Manage Employees (or similar lists)
 

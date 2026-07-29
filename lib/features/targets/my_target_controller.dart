@@ -7,7 +7,7 @@ import '../auth/auth_controller.dart';
 import 'target_progress.dart';
 
 /// The signed-in user's own current-month target vs. achievement — live
-/// (connectivity-assumed, same reasoning as [InvoiceRepository]).
+/// (connectivity-assumed, same reasoning as [SalesTargetRepository]).
 final myTargetControllerProvider = AsyncNotifierProvider<MyTargetController, TargetProgress>(MyTargetController.new);
 
 class MyTargetController extends AsyncNotifier<TargetProgress> {

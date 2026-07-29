@@ -42,7 +42,7 @@ class MyTargetScreen extends ConsumerWidget {
                 ],
                 const SizedBox(height: 24),
                 Text(
-                  'Achievement is based on your approved, dispatched, or invoiced orders this month — not pending or rejected ones.',
+                  'Achievement is based on your approved, dispatched, or delivered orders this month — not pending or rejected ones.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],

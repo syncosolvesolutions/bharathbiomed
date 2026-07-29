@@ -35,7 +35,6 @@ class AppDatabase {
         await _createOrderTables(db);
         await _createRcpaTable(db);
         await _createExpenseClaimTable(db);
-        await _createLeaveRequestTable(db);
         await _createComplianceLogTable(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -62,9 +61,6 @@ class AppDatabase {
         }
         if (oldVersion < 8) {
           await _createExpenseClaimTable(db);
-        }
-        if (oldVersion < 9) {
-          await _createLeaveRequestTable(db);
         }
         if (oldVersion < 10) {
           await _createComplianceLogTable(db);
@@ -194,7 +190,7 @@ class AppDatabase {
 
   /// `orders`: a queue of not-yet-uploaded MR-placed orders, mirrors
   /// `doctor_change_requests`/`entity_change_requests` — once uploaded, the
-  /// live status (approved/dispatched/invoiced) is only ever read from
+  /// live status (approved/dispatched/delivered) is only ever read from
   /// Firestore directly (`OrderRepository.fetchMine`), not re-cached here,
   /// since this table's only job is "does this still need to reach the
   /// server."
@@ -234,19 +230,6 @@ class AppDatabase {
     debugPrint('AppDatabase._createExpenseClaimTable: creating expense_claims table');
     await db.execute('''
       CREATE TABLE expense_claims (
-        localId TEXT PRIMARY KEY,
-        data TEXT NOT NULL,
-        synced INTEGER NOT NULL DEFAULT 0
-      )
-    ''');
-  }
-
-  /// `leave_requests`: a queue of not-yet-uploaded MR-filed leave requests —
-  /// identical shape to `expense_claims`.
-  Future<void> _createLeaveRequestTable(Database db) async {
-    debugPrint('AppDatabase._createLeaveRequestTable: creating leave_requests table');
-    await db.execute('''
-      CREATE TABLE leave_requests (
         localId TEXT PRIMARY KEY,
         data TEXT NOT NULL,
         synced INTEGER NOT NULL DEFAULT 0

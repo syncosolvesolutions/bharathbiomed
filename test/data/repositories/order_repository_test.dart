@@ -87,5 +87,11 @@ void main() {
       await repository.dispatch('o1');
       verify(() => remote.dispatch('o1')).called(1);
     });
+
+    test('markDelivered delegates to the remote data source', () async {
+      when(() => remote.markDelivered('o1')).thenAnswer((_) async {});
+      await repository.markDelivered('o1');
+      verify(() => remote.markDelivered('o1')).called(1);
+    });
   });
 }

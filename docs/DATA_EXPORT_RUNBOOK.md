@@ -64,8 +64,8 @@ spreadsheet. Two options depending on what they actually need:
    [`firestore-export-import`](https://www.npmjs.com/package/firestore-export-import)
    npm package (or a short script using the Admin SDK already vendored in
    `functions/`) can walk each top-level collection
-   (`Products`, `Users`, `Orders`, `Invoices`, `ExpenseClaims`,
-   `LeaveRequests`, `RcpaEntries`, `ComplianceLogs`, ...) and dump it to
+   (`Products`, `Users`, `Orders`, `ExpenseClaims`,
+   `RcpaEntries`, `ComplianceLogs`, ...) and dump it to
    JSON. This is scripted per-request, not a standing tool in this repo —
    write it if/when an actual export request comes in, since the exact
    shape a customer wants (all collections? one date range? which

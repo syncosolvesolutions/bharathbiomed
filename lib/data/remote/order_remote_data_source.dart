@@ -7,10 +7,12 @@ import '../../domain/models/order.dart';
 /// `Orders`: an MR creates one directly (low-privilege — firestore.rules
 /// only lets them write their own `createdByUid`, `status: pending`);
 /// approve/reject are also direct writes, gated by `approve_orders` +
-/// reporting-chain membership (or global visibility). Dispatch and invoice
-/// generation go through Cloud Functions instead, since both need an atomic
-/// transaction against a second resource (`Products.stockQuantity`, an
-/// invoice-number counter) that a plain client write can't safely do.
+/// reporting-chain membership (or global visibility). Dispatch goes through
+/// a Cloud Function instead, since it needs an atomic transaction against a
+/// second resource (`Products.stockQuantity`) that a plain client write
+/// can't safely do. `markDelivered` (the order's own creator only, once
+/// dispatched) is a direct write again — no second resource involved,
+/// invoicing/payment being handled entirely offline outside the app.
 class OrderRemoteDataSource {
   OrderRemoteDataSource({FirebaseFirestore? firestore, FirebaseFunctions? functions})
       : _firestore = firestore ?? FirebaseFirestore.instance,
@@ -36,7 +38,7 @@ class OrderRemoteDataSource {
     return orders;
   }
 
-  /// Every order — for an approver/dispatcher/invoicer with global
+  /// Every order — for an approver/dispatcher with global
   /// visibility. The workflow screen filters to the non-terminal statuses
   /// (pending/approved/dispatched) itself; fetched unfiltered here since
   /// Firestore only allows one `whereIn`/equality-on-status filter per
@@ -94,5 +96,17 @@ class OrderRemoteDataSource {
   Future<void> dispatch(String orderId) async {
     debugPrint('OrderRemoteDataSource.dispatch: orderId=$orderId');
     await _functions.httpsCallable('dispatchOrder').call({'orderId': orderId});
+  }
+
+  /// Ownership-scoped direct write: only the order's own `createdByUid` may
+  /// call this, and only while `dispatched` — see firestore.rules' `Orders`
+  /// rule. The MR's own confirmation that the product physically arrived;
+  /// there's no further status after this (invoicing/payment happen offline).
+  Future<void> markDelivered(String orderId) async {
+    debugPrint('OrderRemoteDataSource.markDelivered: orderId=$orderId');
+    await _firestore.collection('Orders').doc(orderId).update({
+      'status': 'delivered',
+      'deliveredAt': FieldValue.serverTimestamp(),
+    });
   }
 }

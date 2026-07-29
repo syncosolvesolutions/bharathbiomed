@@ -7,19 +7,20 @@ enum Permission {
   createOrders,
   approveOrders,
   dispatchOrders,
-  manageInvoices,
 
   /// Gates approving/rejecting a submitted weekly visit (beat/route) plan
-  /// — see `firestore.rules`' `DoctorVisitPlans` rule and
-  /// `VisitPlanApprovalController`. Despite the generic name, this is
-  /// currently only checked for that one workflow, not `DoctorChangeRequests`
-  /// /`EntityChangeRequests` (those stay gated to `isOfficeAdmin()`).
+  /// (`DoctorVisitPlans` rule/`VisitPlanApprovalController`), and — as of
+  /// the "RM and above can approve all requests" change — also reviewing
+  /// `DoctorChangeRequests`/`EntityChangeRequests` as a second, independent
+  /// path alongside the hardcoded admin allowlist / `isOfficeAdmin()`
+  /// respectively. Deliberately category-agnostic: a field designation
+  /// (e.g. Area Business Manager and above) holding this checkbox qualifies
+  /// exactly the same way an Office Administration designation does.
   approveRequests,
   viewGlobalData,
   manageAgencies,
   manageTargets,
   approveExpenses,
-  approveLeave,
 }
 
 extension PermissionValue on Permission {
@@ -27,26 +28,22 @@ extension PermissionValue on Permission {
         Permission.createOrders => 'create_orders',
         Permission.approveOrders => 'approve_orders',
         Permission.dispatchOrders => 'dispatch_orders',
-        Permission.manageInvoices => 'manage_invoices',
         Permission.approveRequests => 'approve_requests',
         Permission.viewGlobalData => 'view_global_data',
         Permission.manageAgencies => 'manage_agencies',
         Permission.manageTargets => 'manage_targets',
         Permission.approveExpenses => 'approve_expenses',
-        Permission.approveLeave => 'approve_leave',
       };
 
   String get label => switch (this) {
         Permission.createOrders => 'Create Orders',
         Permission.approveOrders => 'Approve Orders',
         Permission.dispatchOrders => 'Dispatch Orders',
-        Permission.manageInvoices => 'Manage Invoices',
-        Permission.approveRequests => 'Approve Requests',
+        Permission.approveRequests => 'Approve Requests (Doctor/Agency/Pharmacy proposals, visit plans)',
         Permission.viewGlobalData => 'View Global Data (all users/regions)',
         Permission.manageAgencies => 'Manage Agencies & Pharmacies (update, not create)',
         Permission.manageTargets => 'Set Monthly Targets (for reporting-chain downline)',
         Permission.approveExpenses => 'Approve Expense Claims (for reporting-chain downline)',
-        Permission.approveLeave => 'Approve Leave Requests (for reporting-chain downline)',
       };
 }
 

@@ -13,7 +13,7 @@ import '../tenant/tenant_config.dart';
 final reportExportServiceProvider = Provider<ReportExportService>((ref) => ReportExportService());
 
 /// Shared export path for every dashboard's "Export" action (Usage
-/// Dashboard, RCPA Dashboard, Team Targets, Invoices, ...) — CSV for raw
+/// Dashboard, RCPA Dashboard, Team Targets, ...) — CSV for raw
 /// data (import into a spreadsheet/accounting tool), a simple tabular PDF
 /// for a formatted, shareable report. Both hand off to the OS share sheet
 /// (via `share_plus`/`printing`) rather than writing to app storage — this

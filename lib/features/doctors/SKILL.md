@@ -48,7 +48,7 @@ how did it go").
   approval pushes whoever holds `approve_requests` in the MR's chain, a
   decision pushes the MR back. Same shared
   `notifyReportingChainWithPermission` helper as
-  `features/orders`/`features/expenses`/`features/leave`.
+  `features/orders`/`features/expenses`.
 
 ## Extending
 

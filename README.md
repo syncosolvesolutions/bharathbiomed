@@ -2,7 +2,7 @@
 
 A tablet-only, offline-first Flutter app for a pharma field sales team —
 catalog/slideshow presentation, doctor visits, orders, RCPA, expenses,
-leave, and more — plus an in-app admin section and a separate desktop web
+and more — plus an in-app admin section and a separate desktop web
 console (same codebase, `flutter build web`) for office staff. Portrait
 and landscape are both supported everywhere except the slideshow
 presentation screen, which stays landscape-only (see
@@ -62,16 +62,13 @@ lib/
     doctors/             Doctor master data, weekly visit plans (+ manager approval
                         workflow) and daily visit-log capture — see its SKILL.md
     agencies/, pharmacies/  Distributor/chemist master data an MR orders against or audits
-    entity_requests/     An MR's proposed new agency/pharmacy, pending Office Admin review
-    orders/              MR order-booking + team approve/dispatch/invoice workflow,
-                        tax + payment tracking on invoices — see its SKILL.md
+    entity_requests/     An MR's proposed new agency/pharmacy, pending Office Admin (or an
+                        approve_requests holder) review
+    orders/              MR order-booking + team approve/dispatch workflow, ending at the
+                        MR's own delivery confirmation — see its SKILL.md
     rcpa/                Retail Chemist Prescription Audit entries + team dashboard
     expenses/            TA/DA expense claims + team approval workflow (mirrors orders/,
                         see its own SKILL.md for how the two patterns differ)
-    leave/                Leave requests + team approval workflow (structurally
-                        identical to expenses/, see its SKILL.md)
-    attendance/            Day-by-day attendance derived from UsageSession — no
-                        new backend, see its SKILL.md
     compliance/            UCPMP compliance logging (gifts/samples/sponsorships
                         given to doctors) — see its SKILL.md
     targets/             Monthly sales targets + live achievement tracking
