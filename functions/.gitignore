@@ -4,3 +4,4 @@ node_modules/
 .env
 .env.*
 .test-seed-manifest.json
+.test-seed-credentials.xlsx

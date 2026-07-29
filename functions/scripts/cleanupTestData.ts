@@ -5,8 +5,9 @@
  * never even references). Every delete is individually try/caught and
  * idempotent-safe (a Firestore delete on an already-gone doc, or
  * auth.deleteUser on an already-gone user, is treated as success), so
- * running this twice — or after a partial failure — is safe. Run via
- * `npm run test:cleanup`.
+ * running this twice — or after a partial failure — is safe. Also deletes
+ * the credentials workbook seedTestData.ts wrote to CREDENTIALS_XLSX_PATH,
+ * if present. Run via `npm run test:cleanup`.
  */
 import {initializeApp} from "firebase-admin/app";
 import {getFirestore} from "firebase-admin/firestore";
@@ -15,6 +16,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 const MANIFEST_PATH = path.join(__dirname, "..", ".test-seed-manifest.json");
+const CREDENTIALS_XLSX_PATH = path.join(__dirname, "..", ".test-seed-credentials.xlsx");
 
 interface Manifest {
   designationIds: string[];
@@ -104,7 +106,8 @@ async function main(): Promise<void> {
   }
 
   fs.unlinkSync(MANIFEST_PATH);
-  console.log("\nAll test data removed. Manifest deleted — back to the pre-seed state.");
+  if (fs.existsSync(CREDENTIALS_XLSX_PATH)) fs.unlinkSync(CREDENTIALS_XLSX_PATH);
+  console.log("\nAll test data removed. Manifest (and credentials workbook, if any) deleted — back to the pre-seed state.");
 }
 
 main()

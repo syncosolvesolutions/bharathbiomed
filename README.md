@@ -185,6 +185,111 @@ Cloud Functions require the Firebase project to be on the **Blaze**
 (pay-as-you-go) plan — the free Spark plan can't run them. Blaze still has a
 generous free tier; this app's realistic usage is unlikely to be billed.
 
+## Seeding test data for manual QA
+
+`functions/scripts/` has three standalone scripts (run with `npm run
+<script>` from `functions/`, not part of the deployed Cloud Functions build)
+for setting up and tearing down a full manual-test environment. All three
+use the same Application Default Credentials as `firebase deploy` and run
+against whichever project `firebase use` currently points at — double-check
+that before running any of them.
+
+### Generate a full test roster (`npm run test:seed`)
+
+```bash
+cd functions
+npm install        # first time only, or after pulling a package.json change
+npm run test:seed
+```
+
+This creates a complete, six-months-deep test tenant in one shot:
+
+- A 32-employee org tree that doubles at every rung — 2 Office Admins, 2
+  Zonal Business Managers (ZBM) → 4 Regional (RBM) → 8 Area (ABM, one per
+  "area") → 16 Medical Representatives (MR) — so every designation has at
+  least 2 people and every manager has exactly 2 direct reports.
+- 3 doctors per MR (48 total), 4 pharmacies per MR (1 standalone + 1 per
+  doctor, 64 total), and 1 agency per area (8 total).
+- Orders, sales targets, expense claims, RCPA entries, compliance logs,
+  visit plans/logs, doctor/entity change requests, usage sessions, and
+  reminders — at least 10 of each, dated across the last ~6 months and
+  deliberately cycling through every status/category value each collection
+  has, so no admin queue or filter is ever empty.
+- Never writes to `Products` or `Department` — it only *reads* a few
+  existing products for order/RCPA line items, so seed the product catalog
+  yourself first (or clone it — see `clone:catalog` below).
+
+When it finishes, open **`functions/.test-seed-credentials.xlsx`** — one row
+per test account, with a real-world name + designation abbreviation (e.g.
+"Rajesh Kumar (ZBM)"), reporting manager, area, username, email, and
+password. Every login uses password `TestPass123!` and must be typed as the
+**full email** (not the bare username) on the sign-in screen.
+
+It refuses to run again if a previous seed hasn't been cleaned up yet
+(`functions/.test-seed-manifest.json` still exists) — run `test:cleanup`
+first.
+
+### Remove exactly what you seeded (`npm run test:cleanup`)
+
+```bash
+npm run test:cleanup
+```
+
+Deletes exactly the Auth users and Firestore docs `test:seed` created (read
+from the manifest), plus the manifest and credentials workbook. Safe to
+re-run if it partially fails. This is the right choice when the only thing
+in the database is what `test:seed` created — it won't touch anything you
+added by hand while testing (new products/departments, or doctors/orders
+you created manually through the app).
+
+### Full reset except the product catalog (`npm run wipe:all`)
+
+```bash
+npm run wipe:all
+```
+
+For when you've been testing for a while — adding real products,
+departments, doctors, orders, etc. by hand through the app, not just what
+`test:seed` created — and want to reset everything back to a clean slate
+**except** the `Products` and `Department` collections (and Products'
+`Batches` subcollection), so you don't have to rebuild the catalog every
+cycle.
+
+This wipes every other Firestore collection (`Users`, `Designations`,
+`Doctors`, `Agencies`, `Pharmacies`, `Orders`, `SalesTargets`,
+`ExpenseClaims`, `RcpaEntries`, `ComplianceLogs`, visit plans/logs, change
+requests, usage sessions, reminders, admin profile/notifications, device
+tokens — everything) and every Firebase Auth user **except** the admin
+emails hardcoded in `functions/src/adminAccess.ts`, so you don't lock
+yourself out of the app's admin console. It prints exactly what it's about
+to delete and requires typing `DELETE EVERYTHING` at a prompt before doing
+anything.
+
+Unlike the seed/cleanup pair above, this has no manifest scoping it — it
+deletes real data indiscriminately, admin-created or test-seeded alike, in
+every collection except the catalog. There's no undo; make sure you're
+pointed at the right project (`firebase use`) before confirming.
+
+**To wipe the catalog too and re-clone it from another project:**
+
+```bash
+cd functions
+firebase use <target-project-id>   # make sure this is the project you mean to empty out
+npm run wipe:all -- --include-catalog
+# type: DELETE EVERYTHING
+npm run clone:catalog -- --source=<source-project-id> --target=<target-project-id>
+```
+
+`--include-catalog` also wipes `Products`/`Department` (and Products'
+`Batches`), leaving nothing behind but the admin login(s) — so this is only
+useful when you're about to repopulate the catalog immediately after, via
+`clone:catalog` (see its doc comment in
+`functions/scripts/cloneProductsCatalog.ts`), which copies `Products` +
+`Batches` + `Department/departmentsDoc` from `--source` into `--target`,
+preserving document ids. That needs Application Default Credentials with
+Firestore access on **both** projects — if you no longer have access to the
+old source project under your current Google account, this step will fail.
+
 ## Admin access
 
 Only the email in `lib/core/auth/admin_access.dart` (`adminEmails`) sees the
