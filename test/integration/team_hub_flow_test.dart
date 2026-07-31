@@ -1,6 +1,8 @@
 import 'package:bharathbiomedpharma/domain/models/doctor_change_request.dart';
+import 'package:bharathbiomedpharma/domain/models/doctor_visit_log.dart';
 import 'package:bharathbiomedpharma/domain/models/doctor_visit_plan.dart';
 import 'package:bharathbiomedpharma/domain/models/permission.dart';
+import 'package:bharathbiomedpharma/domain/models/rcpa_entry.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fixtures.dart';
@@ -101,5 +103,64 @@ void main() {
     await settle(tester);
 
     expect(find.textContaining('Failed'), findsNothing);
+  });
+
+  testWidgets('positive: a manager sees their downline MR\'s logged visits on the Visit Logs dashboard',
+      (tester) async {
+    final backend = TestBackend();
+    backend.employees.employees.addAll([
+      buildEmployee(
+          uid: 'mr1', username: 'rajesh_kumar', firstName: 'Rajesh', reportingChainUids: const ['mgr1']),
+      buildEmployee(uid: 'mgr1', username: 'priya_manager', firstName: 'Priya'),
+    ]);
+    backend.doctorVisitLogs.logs.add(DoctorVisitLog(
+      id: 'log1',
+      mrUid: 'mr1',
+      doctorId: 'doc1',
+      doctorName: 'Dr. Anjali Verma',
+      visitDate: '2026-07-01',
+      createdAt: DateTime(2026, 7, 1),
+    ));
+
+    await pumpApp(tester, backend: backend, signedInAs: buildFirebaseUser(uid: 'mgr1', email: null));
+    await tester.tap(find.byTooltip('My Team'));
+    await settle(tester);
+    await tester.tap(find.text('Visit Logs'));
+    await settle(tester);
+
+    expect(find.text('Rajesh User'), findsOneWidget);
+    // The count/last-visit subtitle is a raw RichText (not Text.rich), so
+    // the default text finder — which only inspects Text widgets — needs
+    // findRichText:true to look inside it.
+    expect(find.textContaining('1 visit logged', findRichText: true), findsOneWidget);
+    expect(find.textContaining('Dr. Anjali Verma', findRichText: true), findsOneWidget);
+  });
+
+  testWidgets('positive: a manager sees their downline MR\'s logged RCPA entries on the RCPA dashboard',
+      (tester) async {
+    final backend = TestBackend();
+    backend.employees.employees.addAll([
+      buildEmployee(
+          uid: 'mr1', username: 'rajesh_kumar', firstName: 'Rajesh', reportingChainUids: const ['mgr1']),
+      buildEmployee(uid: 'mgr1', username: 'priya_manager', firstName: 'Priya'),
+    ]);
+    backend.rcpa.entries.add(RcpaEntry(
+      id: 'entry1',
+      mrUid: 'mr1',
+      pharmacyId: 'ph1',
+      pharmacyName: 'City Pharmacy',
+      auditDate: '2026-07-01',
+      createdAt: DateTime(2026, 7, 1),
+    ));
+
+    await pumpApp(tester, backend: backend, signedInAs: buildFirebaseUser(uid: 'mgr1', email: null));
+    await tester.tap(find.byTooltip('My Team'));
+    await settle(tester);
+    await tester.tap(find.text('RCPA Entries'));
+    await settle(tester);
+
+    expect(find.text('Rajesh User'), findsOneWidget);
+    expect(find.textContaining('1 entry logged', findRichText: true), findsOneWidget);
+    expect(find.textContaining('City Pharmacy', findRichText: true), findsOneWidget);
   });
 }

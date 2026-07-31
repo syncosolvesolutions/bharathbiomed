@@ -27,6 +27,87 @@ void main() {
     repository = UsageSessionRepository(local: local, remote: remote);
   });
 
+  setUpAll(() {
+    registerFallbackValue(session);
+  });
+
+  group('startSession', () {
+    test('closes any dangling session for this employee before inserting the new one', () async {
+      when(() => local.closeDanglingSessions('mr1')).thenAnswer((_) async {});
+      when(() => local.insert(any())).thenAnswer((_) async {});
+
+      await repository.startSession(employeeUid: 'mr1', username: 'rajesh');
+
+      verifyInOrder([
+        () => local.closeDanglingSessions('mr1'),
+        () => local.insert(any()),
+      ]);
+    });
+
+    test('inserts a session carrying the given employee, username, and best-effort location', () async {
+      when(() => local.closeDanglingSessions(any())).thenAnswer((_) async {});
+      when(() => local.insert(any())).thenAnswer((_) async {});
+
+      await repository.startSession(employeeUid: 'mr1', username: 'rajesh', latitude: 12.9, longitude: 77.6);
+
+      final inserted = verify(() => local.insert(captureAny())).captured.single as UsageSession;
+      expect(inserted.employeeUid, 'mr1');
+      expect(inserted.username, 'rajesh');
+      expect(inserted.latitude, 12.9);
+      expect(inserted.longitude, 77.6);
+      expect(inserted.closedAt, isNull);
+    });
+
+    test('returns the new session\'s local id, for closeSession to use later', () async {
+      when(() => local.closeDanglingSessions(any())).thenAnswer((_) async {});
+      when(() => local.insert(any())).thenAnswer((_) async {});
+
+      final id = await repository.startSession(employeeUid: 'mr1', username: 'rajesh');
+
+      final inserted = verify(() => local.insert(captureAny())).captured.single as UsageSession;
+      expect(id, inserted.id);
+    });
+  });
+
+  group('closeSession', () {
+    test('delegates to the local data source', () async {
+      when(() => local.close('s1', any())).thenAnswer((_) async {});
+
+      await repository.closeSession('s1');
+
+      verify(() => local.close('s1', any())).called(1);
+    });
+  });
+
+  group('uploadPending', () {
+    test('uploads every queued session then marks them all synced', () async {
+      when(() => local.getUnsynced()).thenAnswer((_) async => [session]);
+      when(() => remote.upload([session])).thenAnswer((_) async {});
+      when(() => local.markSynced(['s1'])).thenAnswer((_) async {});
+
+      await repository.uploadPending();
+
+      verify(() => remote.upload([session])).called(1);
+      verify(() => local.markSynced(['s1'])).called(1);
+    });
+
+    test('does nothing when the queue is empty', () async {
+      when(() => local.getUnsynced()).thenAnswer((_) async => []);
+
+      await repository.uploadPending();
+
+      verifyNever(() => remote.upload(any()));
+      verifyNever(() => local.markSynced(any()));
+    });
+  });
+
+  group('fetchRecentForDashboard', () {
+    test('delegates to the remote data source', () async {
+      when(() => remote.fetchRecent()).thenAnswer((_) async => [session]);
+      expect(await repository.fetchRecentForDashboard(), [session]);
+    });
+  });
+
   group('countPendingUpload', () {
     test('reflects how many sessions are queued locally', () async {
       when(() => local.getUnsynced()).thenAnswer((_) async => [session]);

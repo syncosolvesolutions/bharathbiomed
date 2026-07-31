@@ -47,6 +47,68 @@ void main() {
     });
   });
 
+  group('save', () {
+    const plan = DoctorVisitPlan(
+      mrUid: 'mr1',
+      doctorIdsByWeekday: {
+        'monday': ['d1']
+      },
+    );
+
+    test('saves remotely then caches it locally as synced', () async {
+      when(() => remote.save(plan)).thenAnswer((_) async {});
+      when(() => local.saveVisitPlan(plan, synced: true)).thenAnswer((_) async {});
+
+      await repository.save(plan);
+
+      verify(() => local.saveVisitPlan(plan, synced: true)).called(1);
+      verifyNever(() => local.saveVisitPlan(plan, synced: false));
+    });
+
+    test('falls back to caching it locally as unsynced when the remote save fails', () async {
+      when(() => remote.save(plan)).thenThrow(Exception('offline'));
+      when(() => local.saveVisitPlan(plan, synced: false)).thenAnswer((_) async {});
+
+      await repository.save(plan);
+
+      verify(() => local.saveVisitPlan(plan, synced: false)).called(1);
+    });
+  });
+
+  group('pushUnsynced', () {
+    test('does nothing when there is no unsynced plan queued', () async {
+      when(() => local.hasUnsyncedVisitPlan('mr1')).thenAnswer((_) async => false);
+
+      await repository.pushUnsynced('mr1');
+
+      verifyNever(() => remote.save(any()));
+      verifyNever(() => local.markVisitPlanSynced(any()));
+    });
+
+    test('does nothing when a plan is flagged unsynced but the local cache has no row for it', () async {
+      when(() => local.hasUnsyncedVisitPlan('mr1')).thenAnswer((_) async => true);
+      when(() => local.getVisitPlan('mr1')).thenAnswer((_) async => null);
+
+      await repository.pushUnsynced('mr1');
+
+      verifyNever(() => remote.save(any()));
+      verifyNever(() => local.markVisitPlanSynced(any()));
+    });
+
+    test('pushes the queued plan and marks it synced', () async {
+      const queued = DoctorVisitPlan(mrUid: 'mr1');
+      when(() => local.hasUnsyncedVisitPlan('mr1')).thenAnswer((_) async => true);
+      when(() => local.getVisitPlan('mr1')).thenAnswer((_) async => queued);
+      when(() => remote.save(queued)).thenAnswer((_) async {});
+      when(() => local.markVisitPlanSynced('mr1')).thenAnswer((_) async {});
+
+      await repository.pushUnsynced('mr1');
+
+      verify(() => remote.save(queued)).called(1);
+      verify(() => local.markVisitPlanSynced('mr1')).called(1);
+    });
+  });
+
   group('fetchAllPending / fetchPendingForEmployees', () {
     test('fetchAllPending delegates to the remote data source', () async {
       when(() => remote.fetchAllPending()).thenAnswer((_) async => const [DoctorVisitPlan(mrUid: 'mr1')]);
