@@ -116,22 +116,18 @@ class _FakeFirebaseCoreHostApi implements TestFirebaseCoreHostApi {
   Future<CoreFirebaseOptions> optionsFromResource() async => _options;
 }
 
-bool _platformFaked = false;
+bool _firebaseFaked = false;
 
-/// One-time process-wide setup for every platform channel Phase 1's flows
-/// touch without going through a Riverpod-injected repository (so none of
-/// the fakes in `fakes.dart` can intercept them): `firebase_core`/
-/// `firebase_crashlytics` above, plus real network and location.
-Future<void> _ensurePlatformFaked() async {
-  if (_platformFaked) return;
-  _platformFaked = true;
-  HttpOverrides.global = _NoNetworkHttpOverrides();
-  _fakeGeolocator();
-  // The birthday-celebration check (fired on every catalog-screen build)
-  // and any reminder/notification "already shown" flags read this — the
-  // documented in-memory mock, no platform channel involved.
-  SharedPreferences.setMockInitialValues({});
-
+/// One-time process-wide setup for the `firebase_core`/`firebase_crashlytics`
+/// platform channels — needed by *any* test that reaches `AppLogger.error`
+/// (not just full `pumpApp` flow tests), since it unconditionally calls
+/// `FirebaseCrashlytics.instance`, which asserts on a `pluginConstants` map
+/// normally populated by the native `Firebase#initializeApp` response. See
+/// [_ensurePlatformFaked]'s doc comment for why this needs the Pigeon-based
+/// `TestFirebaseCoreHostApi` seam rather than a hand-rolled `FirebasePlatform`.
+Future<void> ensureFirebaseFaked() async {
+  if (_firebaseFaked) return;
+  _firebaseFaked = true;
   TestFirebaseCoreHostApi.setUp(_FakeFirebaseCoreHostApi());
   // `AppLogger.error`'s fire-and-forget `FirebaseCrashlytics.instance
   // .recordError(...)` still reaches this classic MethodChannel once past
@@ -143,6 +139,25 @@ Future<void> _ensurePlatformFaked() async {
   );
 
   await Firebase.initializeApp();
+}
+
+bool _platformFaked = false;
+
+/// One-time process-wide setup for every platform channel Phase 1's flows
+/// touch without going through a Riverpod-injected repository (so none of
+/// the fakes in `fakes.dart` can intercept them): [ensureFirebaseFaked]
+/// above, plus real network and location.
+Future<void> _ensurePlatformFaked() async {
+  if (_platformFaked) return;
+  _platformFaked = true;
+  HttpOverrides.global = _NoNetworkHttpOverrides();
+  _fakeGeolocator();
+  // The birthday-celebration check (fired on every catalog-screen build)
+  // and any reminder/notification "already shown" flags read this — the
+  // documented in-memory mock, no platform channel involved.
+  SharedPreferences.setMockInitialValues({});
+
+  await ensureFirebaseFaked();
 }
 
 /// Bundles one in-memory fake per repository the integration suite touches,
